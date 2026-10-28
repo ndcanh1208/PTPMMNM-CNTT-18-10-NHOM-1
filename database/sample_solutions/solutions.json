@@ -1,0 +1,47 @@
+{
+  "SUM_TWO_NUMBERS": {
+    "correct_py": "import sys\nline = sys.stdin.read().split()\nif line:\n    a, b = map(int, line[:2])\n    print(a + b)\n",
+    "correct_cpp": "#include <iostream>\nusing namespace std;\nint main() {\n    long long a, b;\n    if (cin >> a >> b) {\n        cout << a + b << endl;\n    }\n    return 0;\n}\n",
+    "wrong_answer_py": "import sys\nline = sys.stdin.read().split()\nif line:\n    a, b = map(int, line[:2])\n    print(a - b) # Sai phep toan\n",
+    "time_limit_py": "while True:\n    pass\n",
+    "runtime_error_py": "print(1 / 0) # Chia cho 0\n",
+    "compile_error_cpp": "#include <iostream>\nint main() {\n    cout << MissingVariable << endl;\n    return 0\n}\n"
+  },
+  "PRIME_CHECK": {
+    "correct_py": "import sys, math\ndef is_prime(n):\n    if n < 2: return False\n    for i in range(2, int(math.isqrt(n)) + 1):\n        if n % i == 0: return False\n    return True\n\nline = sys.stdin.read().strip()\nif line:\n    n = int(line)\n    print('YES' if is_prime(n) else 'NO')\n",
+    "correct_cpp": "#include <iostream>\nusing namespace std;\nbool isPrime(long long n) {\n    if (n < 2) return false;\n    for (long long i = 2; i * i <= n; i++) {\n        if (n % i == 0) return false;\n    }\n    return true;\n}\nint main() {\n    long long n;\n    if (cin >> n) {\n        cout << (isPrime(n) ? \"YES\" : \"NO\") << endl;\n    }\n    return 0;\n}\n",
+    "wrong_answer_py": "n = int(input())\nprint('YES') # Luon in YES\n"
+  },
+  "REVERSE_ARRAY": {
+    "correct_py": "import sys\nlines = sys.stdin.read().split()\nif lines:\n    n = int(lines[0])\n    arr = lines[1:n+1]\n    print(' '.join(reversed(arr)))\n",
+    "correct_cpp": "#include <iostream>\n#include <vector>\nusing namespace std;\nint main() {\n    int n;\n    if (cin >> n) {\n        vector<long long> a(n);\n        for (int i = 0; i < n; i++) cin >> a[i];\n        for (int i = n - 1; i >= 0; i--) {\n            cout << a[i] << (i == 0 ? \"\" : \" \");\n        }\n        cout << endl;\n    }\n    return 0;\n}\n"
+  },
+  "PALINDROME_STRING": {
+    "correct_py": "import sys\ns = sys.stdin.read().strip()\nif s:\n    print('YES' if s == s[::-1] else 'NO')\n",
+    "correct_cpp": "#include <iostream>\n#include <string>\nusing namespace std;\nint main() {\n    string s;\n    if (cin >> s) {\n        int l = 0, r = s.length() - 1;\n        bool ok = true;\n        while (l < r) {\n            if (s[l++] != s[r--]) { ok = false; break; }\n        }\n        cout << (ok ? \"YES\" : \"NO\") << endl;\n    }\n    return 0;\n}\n"
+  },
+  "SECOND_LARGEST": {
+    "correct_py": "import sys\nlines = sys.stdin.read().split()\nif lines:\n    n = int(lines[0])\n    nums = list(map(int, lines[1:n+1]))\n    uniq = sorted(list(set(nums)), reverse=True)\n    if len(uniq) < 2:\n        print('NOT FOUND')\n    else:\n        print(uniq[1])\n",
+    "correct_cpp": "#include <iostream>\n#include <set>\nusing namespace std;\nint main() {\n    int n;\n    if (cin >> n) {\n        set<long long> s;\n        for (int i = 0; i < n; i++) {\n            long long x; cin >> x;\n            s.insert(x);\n        }\n        if (s.size() < 2) {\n            cout << \"NOT FOUND\" << endl;\n        } else {\n            auto it = s.rbegin();\n            it++;\n            cout << *it << endl;\n        }\n    }\n    return 0;\n}\n"
+  },
+  "FIBONACCI_N": {
+    "correct_py": "import sys\nline = sys.stdin.read().strip()\nif line:\n    n = int(line)\n    if n == 0: print(0)\n    elif n == 1: print(1)\n    else:\n        a, b = 0, 1\n        for _ in range(2, n + 1):\n            a, b = b, a + b\n        print(b)\n",
+    "correct_cpp": "#include <iostream>\nusing namespace std;\nint main() {\n    int n;\n    if (cin >> n) {\n        if (n == 0) cout << 0 << endl;\n        else if (n == 1) cout << 1 << endl;\n        else {\n            long long a = 0, b = 1, c = 0;\n            for (int i = 2; i <= n; i++) {\n                c = a + b;\n                a = b;\n                b = c;\n            }\n            cout << b << endl;\n        }\n    }\n    return 0;\n}\n"
+  },
+  "FACTORIAL_CALC": {
+    "correct_py": "import sys, math\nline = sys.stdin.read().strip()\nif line:\n    n = int(line)\n    print(math.factorial(n))\n",
+    "correct_cpp": "#include <iostream>\nusing namespace std;\nint main() {\n    int n;\n    if (cin >> n) {\n        unsigned long long ans = 1;\n        for (int i = 2; i <= n; i++) ans *= i;\n        cout << ans << endl;\n    }\n    return 0;\n}\n"
+  },
+  "COUNT_WORDS": {
+    "correct_py": "import sys\ntext = sys.stdin.read().strip()\nif not text:\n    print(0)\nelse:\n    print(len(text.split()))\n",
+    "correct_cpp": "#include <iostream>\n#include <string>\n#include <sstream>\nusing namespace std;\nint main() {\n    string s;\n    if (getline(cin, s)) {\n        stringstream ss(s);\n        string word;\n        int cnt = 0;\n        while (ss >> word) cnt++;\n        cout << cnt << endl;\n    }\n    return 0;\n}\n"
+  },
+  "SORT_INTEGERS": {
+    "correct_py": "import sys\nlines = sys.stdin.read().split()\nif lines:\n    n = int(lines[0])\n    nums = sorted(list(map(int, lines[1:n+1])))\n    print(' '.join(map(str, nums)))\n",
+    "correct_cpp": "#include <iostream>\n#include <vector>\n#include <algorithm>\nusing namespace std;\nint main() {\n    int n;\n    if (cin >> n) {\n        vector<long long> a(n);\n        for (int i = 0; i < n; i++) cin >> a[i];\n        sort(a.begin(), a.end());\n        for (int i = 0; i < n; i++) {\n            cout << a[i] << (i == n - 1 ? \"\" : \" \");\n        }\n        cout << endl;\n    }\n    return 0;\n}\n"
+  },
+  "MAX_SUBARRAY_SUM": {
+    "correct_py": "import sys\nlines = sys.stdin.read().split()\nif lines:\n    n = int(lines[0])\n    nums = list(map(int, lines[1:n+1]))\n    max_so_far = current_max = nums[0]\n    for x in nums[1:]:\n        current_max = max(x, current_max + x)\n        max_so_far = max(max_so_far, current_max)\n    print(max_so_far)\n",
+    "correct_cpp": "#include <iostream>\n#include <vector>\n#include <algorithm>\nusing namespace std;\nint main() {\n    int n;\n    if (cin >> n) {\n        vector<long long> a(n);\n        for (int i = 0; i < n; i++) cin >> a[i];\n        long long max_so_far = a[0], current_max = a[0];\n        for (int i = 1; i < n; i++) {\n            current_max = max(a[i], current_max + a[i]);\n            max_so_far = max(max_so_far, current_max);\n        }\n        cout << max_so_far << endl;\n    }\n    return 0;\n}\n"
+  }
+}
