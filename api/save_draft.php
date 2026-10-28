@@ -20,7 +20,10 @@ $data = json_decode($rawInput, true);
 $problemId  = (int)($data['problem_id'] ?? 0);
 $languageId = trim($data['language_id'] ?? 'python3');
 $draftCode  = $data['draft_code'] ?? '';
-$userId     = (int)($data['user_id'] ?? 3);
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+$userId = $_SESSION['user']['id'] ?? (int)($data['user_id'] ?? 3);
 
 if ($problemId <= 0) {
     echo json_encode(['success' => false, 'message' => 'Thiếu mã bài tập']);

@@ -39,13 +39,14 @@ try {
         $stmtLangs = $pdo->query("SELECT * FROM languages WHERE is_active = 1 ORDER BY id DESC");
         $languages = $stmtLangs->fetchAll();
 
-        // 4. Lấy bản nháp đã lưu gần nhất của sinh viên (user_id = 3)
+        // 4. Lấy bản nháp đã lưu gần nhất của người dùng
+        $activeUserId = $_SESSION['user']['id'] ?? 3;
         $stmtDraft = $pdo->prepare("
             SELECT draft_code, language_id 
             FROM code_drafts 
-            WHERE user_id = 3 AND problem_id = ?
+            WHERE user_id = ? AND problem_id = ?
         ");
-        $stmtDraft->execute([$problemId]);
+        $stmtDraft->execute([$activeUserId, $problemId]);
         $draft = $stmtDraft->fetch();
         if ($draft) {
             $draftCode = $draft['draft_code'];

@@ -1,5 +1,8 @@
 <?php
+require_once __DIR__ . '/auth.php';
+
 $currentScript = basename($_SERVER['PHP_SELF']);
+$loggedUser    = getCurrentUser();
 ?>
 <nav class="navbar navbar-expand-lg navbar-custom sticky-top">
     <div class="container-fluid px-lg-4">
@@ -34,13 +37,53 @@ $currentScript = basename($_SERVER['PHP_SELF']);
             </ul>
 
             <div class="d-flex align-items-center gap-2">
-                <span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-2 rounded-pill">
-                    <span class="spinner-grow spinner-grow-sm me-1" role="status" style="width: 8px; height: 8px;"></span>
-                    Piston Sandbox Online
-                </span>
-                <a href="/phpmyadmin/" target="_blank" class="btn btn-outline-secondary btn-sm text-light px-3 py-1">
-                    <i class="fas fa-database me-1"></i> phpMyAdmin
-                </a>
+                <?php if ($loggedUser): 
+                    $role = $loggedUser['role'];
+                    $roleBadgeClass = ($role === 'ADMIN') ? 'bg-danger' : (($role === 'LECTURER') ? 'bg-primary' : 'bg-success');
+                    $roleLabel = ($role === 'ADMIN') ? 'Quản Trị Viên' : (($role === 'LECTURER') ? 'Giảng Viên' : 'Sinh Viên');
+                ?>
+                    <div class="dropdown">
+                        <button class="btn btn-dark border-secondary btn-sm dropdown-toggle text-white d-flex align-items-center gap-2 px-3 py-1" 
+                                type="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-user-circle text-primary fs-5"></i>
+                            <div class="text-start">
+                                <span class="d-block small fw-bold lh-1"><?php echo htmlspecialchars($loggedUser['full_name']); ?></span>
+                                <span class="badge <?php echo $roleBadgeClass; ?>" style="font-size: 0.65rem; padding: 2px 6px;">
+                                    <?php echo $roleLabel; ?>
+                                </span>
+                            </div>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end border-secondary shadow">
+                            <li class="dropdown-header text-secondary small">
+                                Tài khoản: <code><?php echo htmlspecialchars($loggedUser['username']); ?></code>
+                            </li>
+                            <li><hr class="dropdown-divider border-secondary"></li>
+                            <li>
+                                <a class="dropdown-item small" href="submissions.php">
+                                    <i class="fas fa-clock-rotate-left me-2 text-info"></i>Bài nộp của tôi
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item small" href="/phpmyadmin/" target="_blank">
+                                    <i class="fas fa-database me-2 text-warning"></i>phpMyAdmin
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider border-secondary"></li>
+                            <li>
+                                <a class="dropdown-item small text-danger" href="logout.php">
+                                    <i class="fas fa-arrow-right-from-bracket me-2"></i>Đăng xuất
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                <?php else: ?>
+                    <a href="login.php" class="btn btn-outline-light btn-sm px-3 py-1">
+                        <i class="fas fa-right-to-bracket me-1"></i> Đăng Nhập
+                    </a>
+                    <a href="register.php" class="btn btn-primary btn-sm px-3 py-1">
+                        <i class="fas fa-user-plus me-1"></i> Đăng Ký
+                    </a>
+                <?php endif; ?>
             </div>
         </div>
     </div>
