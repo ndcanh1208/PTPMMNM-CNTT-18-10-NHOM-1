@@ -164,52 +164,9 @@ class ExecutionService {
     private static function localFallbackExecute(string $code, string $lang, string $stdin, int $timeLimit): array {
         $cleanCode = trim($code);
 
-        // ==============================================================
-        // 1. KIỂM TRA LỖI BIÊN DỊCH / CÚ PHÁP (COMPILE ERROR - CE)
-        // Luôn kiểm tra cú pháp trước! Mã lỗi cú pháp không bao giờ chạy đến TLE hay RE
-        // ==============================================================
-
-        // 1.1 Kiểm tra đóng mở ngoặc (), [], {} (Áp dụng cả Python và C++)
-        $bracketError = self::checkBracketMatching($code, $lang);
-        if ($bracketError !== null) {
-            return $bracketError;
-        }
-
-        // 1.2 Kiểm tra cú pháp đặc thù cho PYTHON
+        // NẾU LÀ PYTHON 3: Sử dụng trực tiếp trình thông dịch Python 3 thực tế của máy chủ
         if ($lang === 'python3') {
-            $lines = explode("\n", $code);
-            foreach ($lines as $lineIdx => $rawLine) {
-                $lineNum = $lineIdx + 1;
-                // Bỏ comment inline và khoảng trắng
-                $withoutComment = preg_replace('/#.*$/', '', $rawLine);
-                $trimmed = trim($withoutComment);
-                if ($trimmed === '') continue;
-
-                // Các câu lệnh khối trong Python (while, for, if, elif, else, def, class, try, except, finally, with)
-                // BẮT BUỘC phải kết thúc bằng dấu hai chấm ':'
-                if (preg_match('/^(while|for|if|elif|else|def|class|try|except|finally|with)\b/i', $trimmed)) {
-                    if (!str_ends_with($trimmed, ':')) {
-                        return [
-                            'status'  => VERDICT_CE,
-                            'message' => "Lỗi cú pháp Python (SyntaxError: expected ':' at line {$lineNum})",
-                            'stdout'  => '',
-                            'stderr'  => "  File \"solution.py\", line {$lineNum}\n    " . trim($rawLine) . "\n    " . str_repeat(' ', max(0, strlen(trim($rawLine)) - 1)) . "^\nSyntaxError: expected ':'",
-                            'time_ms' => 15
-                        ];
-                    }
-                }
-
-                // Phát hiện lệnh print không có ngoặc tròn (cú pháp Python 2 sang 3)
-                if (preg_match('/^print\s+["\'\w]/', $trimmed)) {
-                    return [
-                        'status'  => VERDICT_CE,
-                        'message' => "Lỗi cú pháp Python: print() phải có dấu ngoặc tròn tại dòng {$lineNum}",
-                        'stdout'  => '',
-                        'stderr'  => "  File \"solution.py\", line {$lineNum}\n    " . trim($rawLine) . "\nSyntaxError: Missing parentheses in call to 'print'. Did you mean print(...) ?",
-                        'time_ms' => 15
-                    ];
-                }
-            }
+            return self::runNativePython($code, $stdin, $timeLimit);
         }
 
         // 1.3 Kiểm tra cú pháp đặc thù cho C++
@@ -408,5 +365,127 @@ class ExecutionService {
         }
 
         return null;
+    }
+
+    /**
+     * Thực thi trực tiếp bằng trình thông dịch Python 3 thực tế của máy chủ
+     */
+    private static function runNativePython(string $code, string $stdin, int $timeLimitMs): array {
+        $pythonBin = 'C:\\xampp\\python_embed\\python.exe';
+        if (!file_exists($pythonBin)) {
+            $pythonBin = 'python';
+        }
+
+        $sandboxDir = __DIR__ . '/../temp/sandbox';
+        if (!is_dir($sandboxDir)) {
+            @mkdir($sandboxDir, 0777, true);
+        }
+
+        $sessionId = uniqid('py_', true);
+        $runDir = $sandboxDir . '/' . $sessionId;
+        @mkdir($runDir, 0777, true);
+
+        $scriptFile = $runDir . '/solution.py';
+        $stdinFile  = $runDir . '/stdin.txt';
+        $stdoutFile = $runDir . '/stdout.txt';
+        $stderrFile = $runDir . '/stderr.txt';
+
+        file_put_contents($scriptFile, $code);
+        file_put_contents($stdinFile, $stdin);
+
+        $descriptors = [
+            0 => ['file', $stdinFile, 'r'],
+            1 => ['file', $stdoutFile, 'w'],
+            2 => ['file', $stderrFile, 'w']
+        ];
+
+        $cmd = "\"{$pythonBin}\" -u \"{$scriptFile}\"";
+        $startTime = microtime(true);
+        $process = proc_open($cmd, $descriptors, $pipes, $runDir);
+
+        if (!is_resource($process)) {
+            return [
+                'status'  => VERDICT_SE,
+                'message' => 'Không thể khởi tạo tiến trình thực thi Python',
+                'stdout'  => '',
+                'stderr'  => 'proc_open failed',
+                'time_ms' => 0
+            ];
+        }
+
+        $timeLimitSec = max(0.5, $timeLimitMs / 1000.0);
+        $isTimedOut = false;
+
+        while (true) {
+            $status = proc_get_status($process);
+            if (!$status['running']) {
+                break;
+            }
+
+            $elapsed = (microtime(true) - $startTime);
+            if ($elapsed > $timeLimitSec) {
+                $isTimedOut = true;
+                $pid = $status['pid'];
+                proc_terminate($process);
+                @exec("taskkill /F /T /PID $pid 2>NUL");
+                break;
+            }
+            usleep(10000); // 10ms
+        }
+
+        proc_close($process);
+        $executionTimeMs = (int)round((microtime(true) - $startTime) * 1000);
+
+        $stdout = file_exists($stdoutFile) ? (string)file_get_contents($stdoutFile) : '';
+        $stderr = file_exists($stderrFile) ? (string)file_get_contents($stderrFile) : '';
+
+        // Dọn dẹp sandbox
+        @unlink($scriptFile);
+        @unlink($stdinFile);
+        @unlink($stdoutFile);
+        @unlink($stderrFile);
+        @rmdir($runDir);
+
+        // 1. Quá thời gian (TLE)
+        if ($isTimedOut) {
+            return [
+                'status'  => VERDICT_TLE,
+                'message' => "Chương trình chạy quá giới hạn thời gian ({$timeLimitMs}ms).",
+                'stdout'  => $stdout,
+                'stderr'  => "Process terminated: Time Limit Exceeded (exceeded {$timeLimitMs}ms)",
+                'time_ms' => $timeLimitMs
+            ];
+        }
+
+        // 2. Lỗi thực thi hoặc lỗi cú pháp
+        if (!empty($stderr)) {
+            if (stripos($stderr, 'SyntaxError') !== false || 
+                stripos($stderr, 'IndentationError') !== false || 
+                stripos($stderr, 'TabError') !== false) {
+                return [
+                    'status'  => VERDICT_CE,
+                    'message' => 'Lỗi cú pháp / biên dịch Python (SyntaxError)',
+                    'stdout'  => $stdout,
+                    'stderr'  => $stderr,
+                    'time_ms' => $executionTimeMs
+                ];
+            }
+
+            return [
+                'status'  => VERDICT_RE,
+                'message' => 'Lỗi khi thực thi chương trình (Runtime Error)',
+                'stdout'  => $stdout,
+                'stderr'  => $stderr,
+                'time_ms' => $executionTimeMs
+            ];
+        }
+
+        return [
+            'status'  => 'SUCCESS',
+            'message' => 'Thực thi thành công',
+            'stdout'  => $stdout,
+            'stderr'  => '',
+            'time_ms' => $executionTimeMs
+        ];
     }
 }
