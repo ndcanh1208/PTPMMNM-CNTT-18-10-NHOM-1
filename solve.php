@@ -61,6 +61,9 @@ if (!$problem) {
     die("Không tìm thấy bài tập hoặc cơ sở dữ liệu chưa được nạp. Hãy truy cập <a href='database/install.php'>database/install.php</a>.");
 }
 
+$defaultPythonStarter = "# Viết mã giải bài bằng Python 3 tại đây\nimport sys\n\ndef main():\n    lines = sys.stdin.read().split()\n    if not lines:\n        return\n    # Viết logic thuật toán tại đây...\n    if len(lines) >= 2:\n        print(int(lines[0]) + int(lines[1]))\n    else:\n        print(lines[0])\n\nif __name__ == '__main__':\n    main()\n";
+$initialEditorCode = !empty($draftCode) ? $draftCode : $defaultPythonStarter;
+
 require_once __DIR__ . '/includes/header.php';
 require_once __DIR__ . '/includes/navbar.php';
 ?>
@@ -143,11 +146,14 @@ require_once __DIR__ . '/includes/navbar.php';
                 <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 pb-2 border-bottom border-secondary mb-2">
                     <div class="d-flex align-items-center gap-2">
                         <label class="text-secondary small fw-bold">Ngôn ngữ:</label>
-                        <select id="selectLanguage" class="form-select form-select-sm bg-dark border-secondary text-white" style="width: 160px;">
+                        <select id="selectLanguage" class="form-select form-select-sm bg-dark border-secondary text-white" style="width: 150px;">
                             <option value="python3" selected>Python 3</option>
                             <option value="cpp">C++ 17 (GCC)</option>
                         </select>
-                        <span id="editorModeBadge" class="badge bg-dark border border-secondary text-secondary small">Đang nạp editor...</span>
+                        <span id="editorModeBadge" class="badge bg-secondary-subtle text-light border border-secondary small">
+                            <i class="fas fa-bolt text-warning me-1"></i>Editor Sẵn sàng
+                        </span>
+                        <div id="monacoStatusWrapper" class="d-inline-block"></div>
                     </div>
 
                     <div class="d-flex align-items-center gap-2">
@@ -163,12 +169,12 @@ require_once __DIR__ . '/includes/navbar.php';
                     </div>
                 </div>
 
-                <!-- Khung Soạn Thảo (Hỗ trợ Monaco Editor + Native Editor fallback an toàn 100%) -->
+                <!-- Khung Soạn Thảo (Tích hợp CodeMirror 5 cục bộ siêu tốc 2ms + Monaco Editor nạp ngầm) -->
                 <div id="editor-wrapper" style="flex: 1; min-height: 320px; position: relative;" class="border border-secondary rounded overflow-hidden">
                     <div id="monaco-container" style="width: 100%; height: 100%; display: none;"></div>
                     <textarea id="codeFallback" class="form-control bg-dark text-white font-monospace border-0 p-3" 
                               style="width: 100%; height: 100%; resize: none; font-size: 14px; line-height: 1.6; outline: none;" 
-                              spellcheck="false" placeholder="Nhập mã nguồn giải bài tại đây..."></textarea>
+                              spellcheck="false" placeholder="Nhập mã nguồn giải bài tại đây..."><?php echo htmlspecialchars($initialEditorCode); ?></textarea>
                 </div>
 
                 <!-- Khung Console / Tabs phía dưới Editor -->
@@ -237,8 +243,52 @@ require_once __DIR__ . '/includes/navbar.php';
     </div>
 </div>
 
-<!-- Nạp Monaco Editor qua CDN (Microsoft Monaco) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js"></script>
+<!-- Local CodeMirror 5 Assets (Nạp cục bộ 2ms, 100% offline, không giật lag khi F5) -->
+<link rel="stylesheet" href="assets/codemirror/codemirror.min.css">
+<link rel="stylesheet" href="assets/codemirror/theme/dracula.min.css">
+<style>
+.CodeMirror {
+    height: 100% !important;
+    min-height: 320px;
+    font-family: 'JetBrains Mono', Consolas, monospace !important;
+    font-size: 14px !important;
+    line-height: 1.6 !important;
+    background: #0d131f !important;
+    color: #f8fafc !important;
+    border-radius: 6px;
+}
+.CodeMirror-gutters {
+    background: #090e18 !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+    padding-right: 6px;
+}
+.CodeMirror-linenumber {
+    color: #64748b !important;
+    font-size: 12px;
+}
+.CodeMirror-cursor {
+    border-left: 2px solid #818cf8 !important;
+}
+.CodeMirror-activeline-background {
+    background: rgba(99, 102, 241, 0.08) !important;
+}
+.CodeMirror-selected {
+    background: rgba(99, 102, 241, 0.28) !important;
+}
+.cm-s-dracula .cm-keyword { color: #f472b6 !important; font-weight: 600; }
+.cm-s-dracula .cm-def { color: #38bdf8 !important; font-weight: 600; }
+.cm-s-dracula .cm-variable { color: #f1f5f9 !important; }
+.cm-s-dracula .cm-string { color: #a3e635 !important; }
+.cm-s-dracula .cm-number { color: #fb923c !important; }
+.cm-s-dracula .cm-comment { color: #64748b !important; font-style: italic; }
+.cm-s-dracula .cm-operator { color: #cbd5e1 !important; }
+.cm-s-dracula .cm-builtin { color: #38bdf8 !important; }
+</style>
+<script src="assets/codemirror/codemirror.min.js"></script>
+<script src="assets/codemirror/mode/python.min.js"></script>
+<script src="assets/codemirror/mode/clike.min.js"></script>
+<script src="assets/codemirror/addon/closebrackets.min.js"></script>
+<script src="assets/codemirror/addon/matchbrackets.min.js"></script>
 
 <script>
 // Mẫu mã nguồn mặc định
@@ -280,20 +330,50 @@ int main() {
 `
 };
 
-let editor = null;
+let cmEditor = null;
+let monacoEditor = null;
 const problemId = <?php echo (int)$problem['id']; ?>;
 let savedDraftCode = <?php echo json_encode($draftCode); ?>;
 const langSelect = document.getElementById('selectLanguage');
 const fallbackTextarea = document.getElementById('codeFallback');
 const modeBadge = document.getElementById('editorModeBadge');
+const statusWrapper = document.getElementById('monacoStatusWrapper');
 
-// Thiết lập mã khởi tạo vào textarea fallback
 const initialLang = langSelect.value;
 const initialCode = savedDraftCode || starterCode[initialLang];
-fallbackTextarea.value = initialCode;
-modeBadge.textContent = 'Native Editor';
 
-// Hỗ trợ phím Tab trong textarea fallback (Tab chèn 4 khoảng trắng)
+// 1. Khởi tạo CodeMirror cục bộ ngay lập tức (2ms, 0ms blocking)
+try {
+    if (typeof CodeMirror !== 'undefined') {
+        cmEditor = CodeMirror.fromTextArea(fallbackTextarea, {
+            mode: initialLang === 'python3' ? 'python' : 'text/x-c++src',
+            theme: 'dracula',
+            lineNumbers: true,
+            indentUnit: 4,
+            tabSize: 4,
+            indentWithTabs: false,
+            autoCloseBrackets: true,
+            matchBrackets: true,
+            lineWrapping: false
+        });
+        cmEditor.setSize('100%', '100%');
+        cmEditor.setValue(initialCode);
+        cmEditor.on('change', () => {
+            fallbackTextarea.value = cmEditor.getValue();
+            triggerAutoSave();
+        });
+        modeBadge.innerHTML = '<i class="fas fa-bolt text-warning me-1"></i>Editor Sẵn sàng';
+        modeBadge.className = 'badge bg-success-subtle text-success border border-success-subtle small';
+    } else {
+        fallbackTextarea.value = initialCode;
+        modeBadge.innerHTML = '<i class="fas fa-check-circle me-1"></i>Native Editor';
+    }
+} catch (e) {
+    console.warn("CodeMirror init fallback:", e);
+    fallbackTextarea.value = initialCode;
+}
+
+// Hỗ trợ phím Tab trong textarea native fallback
 fallbackTextarea.addEventListener('keydown', function(e) {
     if (e.key === 'Tab') {
         e.preventDefault();
@@ -306,8 +386,11 @@ fallbackTextarea.addEventListener('keydown', function(e) {
 
 // Hàm lấy mã nguồn hiện tại từ bất kỳ editor nào đang kích hoạt
 function getCode() {
-    if (editor && typeof editor.getValue === 'function') {
-        return editor.getValue();
+    if (monacoEditor && typeof monacoEditor.getValue === 'function') {
+        return monacoEditor.getValue();
+    }
+    if (cmEditor && typeof cmEditor.getValue === 'function') {
+        return cmEditor.getValue();
     }
     return fallbackTextarea.value;
 }
@@ -315,60 +398,106 @@ function getCode() {
 // Hàm đặt mã nguồn
 function setCode(val) {
     fallbackTextarea.value = val;
-    if (editor && typeof editor.setValue === 'function') {
-        editor.setValue(val);
+    if (cmEditor && typeof cmEditor.setValue === 'function') {
+        cmEditor.setValue(val);
+    }
+    if (monacoEditor && typeof monacoEditor.setValue === 'function') {
+        monacoEditor.setValue(val);
     }
 }
 
-// Thử tải và khởi tạo Monaco Editor nếu CDN sẵn sàng
-try {
-    if (typeof require !== 'undefined' && require.config) {
-        require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }});
-        require(['vs/editor/editor.main'], function() {
-            try {
-                const monacoLang = initialLang === 'python3' ? 'python' : 'cpp';
-                fallbackTextarea.style.display = 'none';
-                document.getElementById('monaco-container').style.display = 'block';
-
-                editor = monaco.editor.create(document.getElementById('monaco-container'), {
-                    value: getCode(),
-                    language: monacoLang,
-                    theme: 'vs-dark',
-                    automaticLayout: true,
-                    fontSize: 14,
-                    fontFamily: "'JetBrains Mono', Consolas, monospace",
-                    minimap: { enabled: false },
-                    scrollBeyondLastLine: false,
-                    padding: { top: 12, bottom: 12 },
-                    tabSize: 4,
-                    insertSpaces: true
-                });
-
-                modeBadge.textContent = 'Monaco (VS Code)';
-                modeBadge.className = 'badge bg-primary-subtle text-primary border border-primary-subtle small';
-
-                // Đồng bộ từ Monaco về fallback
-                editor.onDidChangeModelContent(() => {
-                    fallbackTextarea.value = editor.getValue();
-                    triggerAutoSave();
-                });
-            } catch (err) {
-                console.warn("Monaco init failed, using Native Editor:", err);
-                fallbackTextarea.style.display = 'block';
-                modeBadge.textContent = 'Native Editor';
+// 2. Tải Monaco Editor bất đồng bộ trong nền (Không chặn F5, không giật lag)
+function initMonacoAsync() {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js';
+    script.async = true;
+    script.onload = () => {
+        if (typeof require !== 'undefined' && require.config) {
+            require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }});
+            if (statusWrapper) {
+                statusWrapper.innerHTML = `
+                    <button type="button" class="btn btn-outline-primary btn-sm py-0 px-2 small" id="btnSwitchMonaco" title="Chuyển sang Monaco Editor (VS Code)" style="font-size: 0.75rem;">
+                        <i class="fas fa-wand-magic-sparkles me-1"></i>VS Code Engine
+                    </button>
+                `;
+                const btn = document.getElementById('btnSwitchMonaco');
+                if (btn) btn.addEventListener('click', switchToMonaco);
             }
-        });
-    }
-} catch (e) {
-    console.warn("Require failed, using Native Editor:", e);
+        }
+    };
+    script.onerror = () => {
+        console.info('Monaco CDN không khả dụng hoặc mạng chậm, tiếp tục sử dụng CodeMirror siêu tốc.');
+    };
+    document.body.appendChild(script);
 }
+
+function switchToMonaco() {
+    if (monacoEditor) return;
+    const currentCode = getCode();
+    const currentLang = langSelect.value;
+    const monacoLang = currentLang === 'python3' ? 'python' : 'cpp';
+    if (statusWrapper) {
+        statusWrapper.innerHTML = '<span class="text-secondary small"><i class="fas fa-spinner fa-spin me-1"></i>Đang nạp VS Code...</span>';
+    }
+
+    require(['vs/editor/editor.main'], function() {
+        try {
+            if (cmEditor) {
+                cmEditor.getWrapperElement().style.display = 'none';
+            }
+            fallbackTextarea.style.display = 'none';
+            const monacoContainer = document.getElementById('monaco-container');
+            monacoContainer.style.display = 'block';
+
+            monacoEditor = monaco.editor.create(monacoContainer, {
+                value: currentCode,
+                language: monacoLang,
+                theme: 'vs-dark',
+                automaticLayout: true,
+                fontSize: 14,
+                fontFamily: "'JetBrains Mono', Consolas, monospace",
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                padding: { top: 12, bottom: 12 },
+                tabSize: 4,
+                insertSpaces: true
+            });
+
+            modeBadge.innerHTML = '<i class="fas fa-check-double text-primary me-1"></i>Monaco (VS Code)';
+            modeBadge.className = 'badge bg-primary-subtle text-primary border border-primary-subtle small';
+
+            if (statusWrapper) {
+                statusWrapper.innerHTML = '<span class="badge bg-dark border border-secondary text-secondary small">VS Code Active</span>';
+            }
+
+            monacoEditor.onDidChangeModelContent(() => {
+                fallbackTextarea.value = monacoEditor.getValue();
+                triggerAutoSave();
+            });
+        } catch (err) {
+            console.warn('Khởi tạo Monaco lỗi:', err);
+            if (statusWrapper) {
+                statusWrapper.innerHTML = '<span class="text-warning small">Lỗi nạp Monaco, giữ Code Editor.</span>';
+            }
+        }
+    });
+}
+
+// Khởi chạy nạp Monaco ngầm sau khi trang và CodeMirror đã sẵn sàng
+window.addEventListener('load', () => {
+    setTimeout(initMonacoAsync, 300);
+});
 
 // Đổi ngôn ngữ
 langSelect.addEventListener('change', (e) => {
     const lang = e.target.value;
-    const monacoLang = lang === 'python3' ? 'python' : 'cpp';
-    if (editor && typeof editor.getModel === 'function') {
-        monaco.editor.setModelLanguage(editor.getModel(), monacoLang);
+    const cmMode = lang === 'python3' ? 'python' : 'text/x-c++src';
+    if (cmEditor) {
+        cmEditor.setOption('mode', cmMode);
+    }
+    if (monacoEditor && typeof monacoEditor.getModel === 'function') {
+        const monacoLang = lang === 'python3' ? 'python' : 'cpp';
+        monaco.editor.setModelLanguage(monacoEditor.getModel(), monacoLang);
     }
     if (!savedDraftCode) {
         setCode(starterCode[lang]);

@@ -28,6 +28,7 @@ Dự án tuân thủ đầy đủ các quy định về sử dụng mã nguồn 
 | Tên Thư Viện / Dịch Vụ | Mục Đích Sử Dụng | Giấy Phép (License) | Nguồn / Trang Chủ |
 | :--- | :--- | :--- | :--- |
 | **Monaco Editor** | Trình soạn thảo mã nguồn trên trình duyệt (VS Code engine), hỗ trợ Syntax Highlight Python/C++ | **MIT License** | [github.com/microsoft/monaco-editor](https://github.com/microsoft/monaco-editor) |
+| **CodeMirror 5** | Trình soạn thảo mã nguồn siêu tốc nạp offline nội bộ (2ms), Syntax Highlight Python/C++, giao diện Dracula | **MIT License** | [codemirror.net/5](https://codemirror.net/5/) |
 | **Piston API** | Dịch vụ thực thi mã cách ly trong môi trường Sandbox bảo mật | **MIT License** | [github.com/engineer-man/piston](https://github.com/engineer-man/piston) |
 | **Bootstrap 5** | Khung giao diện Responsive, lưới layout, Modal và Tabs | **MIT License** | [getbootstrap.com](https://getbootstrap.com/) |
 | **Font Awesome 6** | Bộ biểu tượng giao diện trực quan | **Icons: CC BY 4.0, Fonts: SIL OFL 1.1** | [fontawesome.com](https://fontawesome.com/) |
