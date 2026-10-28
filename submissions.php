@@ -3,6 +3,7 @@ $pageTitle = 'Lịch Sử Nộp Bài & Tra Cứu Tiến Độ';
 
 require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/config/db.php';
+require_once __DIR__ . '/includes/auth.php';
 
 $submissions = [];
 $errorMsg = null;

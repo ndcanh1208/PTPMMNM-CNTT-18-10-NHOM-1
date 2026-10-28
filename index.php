@@ -8,6 +8,7 @@ $pageTitle = 'Trang Chủ - Hệ Thống Luyện Tập & Chấm Bài Trực Tuy�
 
 require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/config/db.php';
+require_once __DIR__ . '/includes/auth.php';
 
 $dbInstalled = false;
 $stats = [

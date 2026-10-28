@@ -4,7 +4,7 @@
  * Đề tài 20: Phân biệt Sinh viên (STUDENT), Giảng viên (LECTURER), Quản trị viên (ADMIN)
  */
 
-if (session_status() === PHP_SESSION_NONE) {
+if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
     session_start();
 }
 

@@ -3,6 +3,7 @@ $pageTitle = 'Luyện Tập & Soạn Thảo Mã Nguồn';
 
 require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/config/db.php';
+require_once __DIR__ . '/includes/auth.php';
 
 $problemId = (int)($_GET['id'] ?? 1);
 
