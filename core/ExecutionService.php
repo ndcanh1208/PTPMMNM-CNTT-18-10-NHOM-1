@@ -459,24 +459,28 @@ class ExecutionService {
 
         // 2. Lỗi thực thi hoặc lỗi cú pháp
         if (!empty($stderr)) {
+            $diagnostic = self::analyzePythonError($code, $stdin, $stderr);
+
             if (stripos($stderr, 'SyntaxError') !== false || 
                 stripos($stderr, 'IndentationError') !== false || 
                 stripos($stderr, 'TabError') !== false) {
                 return [
-                    'status'  => VERDICT_CE,
-                    'message' => 'Lỗi cú pháp / biên dịch Python (SyntaxError)',
-                    'stdout'  => $stdout,
-                    'stderr'  => $stderr,
-                    'time_ms' => $executionTimeMs
+                    'status'     => VERDICT_CE,
+                    'message'    => 'Lỗi cú pháp / biên dịch Python (SyntaxError)',
+                    'stdout'     => $stdout,
+                    'stderr'     => $stderr,
+                    'time_ms'    => $executionTimeMs,
+                    'diagnostic' => $diagnostic
                 ];
             }
 
             return [
-                'status'  => VERDICT_RE,
-                'message' => 'Lỗi khi thực thi chương trình (Runtime Error)',
-                'stdout'  => $stdout,
-                'stderr'  => $stderr,
-                'time_ms' => $executionTimeMs
+                'status'     => VERDICT_RE,
+                'message'    => 'Lỗi khi thực thi chương trình (Runtime Error)',
+                'stdout'     => $stdout,
+                'stderr'     => $stderr,
+                'time_ms'    => $executionTimeMs,
+                'diagnostic' => $diagnostic
             ];
         }
 
@@ -487,5 +491,67 @@ class ExecutionService {
             'stderr'  => '',
             'time_ms' => $executionTimeMs
         ];
+    }
+
+    /**
+     * Lớp chẩn đoán sư phạm thông minh (Smart Diagnostic Layer)
+     * Phân tích nguyên nhân lỗi và đưa ra hướng dẫn cụ thể thay vì chỉ traceback thô
+     */
+    private static function analyzePythonError(string $code, string $stdin, string $stderr): ?array {
+        if (empty($stderr)) {
+            return null;
+        }
+
+        // 1. Lỗi gọi int(input) thiếu ngoặc đơn
+        if (stripos($stderr, "TypeError: int() argument must be a string") !== false && stripos($stderr, "builtin_function_or_method") !== false) {
+            return [
+                'type'       => 'INPUT_FUNCTION_CALL',
+                'title'      => 'Thiếu ngoặc đơn khi gọi hàm input()',
+                'detail'     => 'Trong Python, input là một hàm có sẵn (built-in function). Để nhận dữ liệu từ bàn phím, bạn phải gọi hàm với cặp ngoặc tròn: input().',
+                'fix_code'   => "a = int(input())\nb = int(input())",
+                'suggestion' => 'Hãy thêm cặp ngoặc tròn () vào sau chữ input để thực thi hàm đọc dữ liệu.'
+            ];
+        }
+
+        // 2. Lỗi đọc nhiều số trên cùng 1 dòng bằng int(input()) (ValueError)
+        if (stripos($stderr, "invalid literal for int() with base 10") !== false) {
+            preg_match("/invalid literal for int\(\) with base 10:\s*['\"]([^'\"]+)['\"]/i", $stderr, $m);
+            $errLiteral = $m[1] ?? '';
+
+            if (strpos($errLiteral, ' ') !== false) {
+                return [
+                    'type'       => 'MULTIPLE_TOKENS_PER_LINE',
+                    'title'      => 'Dữ liệu đầu vào nằm trên cùng một dòng',
+                    'detail'     => "Lệnh int(input()) đã đọc toàn bộ dòng chứa chuỗi \"{$errLiteral}\". Hàm int() trong Python không thể ép kiểu một chuỗi chứa nhiều số cùng lúc.",
+                    'fix_code'   => "a, b = map(int, input().split())\n\n# Hoặc đọc toàn bộ dữ liệu an toàn:\nimport sys\ntokens = sys.stdin.read().split()\na, b = int(tokens[0]), int(tokens[1])",
+                    'suggestion' => 'Bạn có thể sửa code sang map(int, input().split()) hoặc bấm nút "Tách dòng ↵" ở ô Dữ liệu vào để chia mỗi số ra một dòng riêng.'
+                ];
+            }
+        }
+
+        // 3. Lỗi gọi input() quá số dòng có sẵn (EOFError)
+        if (stripos($stderr, "EOFError: EOF when reading a line") !== false) {
+            $inputLines = preg_split('/\r?\n/', trim($stdin));
+            $lineCount = count(array_filter($inputLines, fn($l) => trim($l) !== ''));
+            return [
+                'type'       => 'EOF_INPUT_EXHAUSTED',
+                'title'      => 'Hết dữ liệu đầu vào (EOFError: EOF when reading a line)',
+                'detail'     => "Code của bạn gọi lệnh input() nhiều lần để chờ các dòng tiếp theo, nhưng dữ liệu đầu vào hiện tại chỉ có {$lineCount} dòng và đã được đọc hết.",
+                'fix_code'   => "a, b = map(int, input().split())",
+                'suggestion' => 'Nếu các số nằm trên cùng một dòng, hãy dùng input().split(). Nếu đề bài yêu cầu nhiều dòng, hãy bổ sung thêm các dòng vào ô Dữ liệu vào (stdin).'
+            ];
+        }
+
+        // 4. Lỗi lặp vô hạn
+        if (stripos($stderr, "Time Limit Exceeded") !== false) {
+            return [
+                'type'       => 'TIME_LIMIT_EXCEEDED',
+                'title'      => 'Chương trình vượt quá giới hạn thời gian chạy',
+                'detail'     => 'Chương trình không dừng lại trong thời gian quy định (thường do vòng lặp while/for không có điều kiện dừng hoặc điều kiện tăng biến lặp bị thiếu).',
+                'suggestion' => 'Hãy kiểm tra lại biến đếm hoặc điều kiện thoát khỏi vòng lặp.'
+            ];
+        }
+
+        return null;
     }
 }

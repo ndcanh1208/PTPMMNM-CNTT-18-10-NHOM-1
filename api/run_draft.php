@@ -43,10 +43,11 @@ if (empty($sourceCode)) {
 $result = ExecutionService::execute($sourceCode, $languageId, $customInput, $timeLimitMs);
 
 echo json_encode([
-    'success' => true,
-    'status'  => $result['status'],
-    'stdout'  => $result['stdout'] ?? '',
-    'stderr'  => $result['stderr'] ?? '',
-    'message' => $result['message'] ?? '',
-    'time_ms' => $result['time_ms'] ?? 0
+    'success'    => true,
+    'status'     => $result['status'],
+    'stdout'     => $result['stdout'] ?? '',
+    'stderr'     => $result['stderr'] ?? '',
+    'message'    => $result['message'] ?? '',
+    'diagnostic' => $result['diagnostic'] ?? null,
+    'time_ms'    => $result['time_ms'] ?? 0
 ]);

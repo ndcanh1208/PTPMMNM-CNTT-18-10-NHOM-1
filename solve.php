@@ -193,9 +193,20 @@ require_once __DIR__ . '/includes/navbar.php';
 
                     <div class="tab-content flex-grow-1 overflow-auto bg-black bg-opacity-40 p-2 rounded border border-secondary" id="consoleContent">
                         <!-- Tab 1: Custom Input -->
-                        <div class="tab-pane fade show active h-100" id="tab-input">
-                            <textarea id="customInput" class="form-control bg-transparent border-0 text-white font-monospace h-100" 
-                                      style="resize: none;" placeholder="Nhập dữ liệu stdin cho chương trình chạy thử tại đây..."></textarea>
+                        <div class="tab-pane fade show active h-100 d-flex flex-column" id="tab-input">
+                            <div class="d-flex justify-content-between align-items-center pb-1 mb-1 border-bottom border-secondary border-opacity-25">
+                                <span class="text-secondary small fw-semibold">Dữ liệu đầu vào (stdin):</span>
+                                <div class="btn-group btn-group-sm">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" id="btnSplitLinesInput" title="Tách các số thành mỗi số trên một dòng riêng (3↵5)">
+                                        <i class="fas fa-arrows-split-up-and-left me-1"></i>Tách dòng (↵)
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" id="btnJoinLinesInput" title="Gộp các dòng thành 1 dòng cách nhau bởi dấu cách (3 5)">
+                                        <i class="fas fa-arrows-left-right me-1"></i>Gộp 1 dòng
+                                    </button>
+                                </div>
+                            </div>
+                            <textarea id="customInput" class="form-control bg-transparent border-0 text-white font-monospace flex-grow-1" 
+                                      style="resize: none; min-height: 120px;" placeholder="Nhập dữ liệu stdin cho chương trình chạy thử tại đây..."></textarea>
                         </div>
 
                         <!-- Tab 2: Console Run Output -->
@@ -428,6 +439,28 @@ document.querySelectorAll('.btn-copy-sample').forEach(btn => {
     });
 });
 
+// Nút Tách dòng dữ liệu đầu vào (mỗi số trên 1 dòng)
+const btnSplit = document.getElementById('btnSplitLinesInput');
+if (btnSplit) {
+    btnSplit.addEventListener('click', () => {
+        const inp = document.getElementById('customInput');
+        if (inp && inp.value.trim()) {
+            inp.value = inp.value.trim().split(/\s+/).join('\n');
+        }
+    });
+}
+
+// Nút Gộp dòng dữ liệu đầu vào (các số cách nhau bởi dấu cách)
+const btnJoin = document.getElementById('btnJoinLinesInput');
+if (btnJoin) {
+    btnJoin.addEventListener('click', () => {
+        const inp = document.getElementById('customInput');
+        if (inp && inp.value.trim()) {
+            inp.value = inp.value.trim().split(/\s+/).join(' ');
+        }
+    });
+});
+
 // Nút Đặt lại code mặc định
 document.getElementById('btnResetCode').addEventListener('click', () => {
     if (confirm('Bạn có chắc muốn đặt lại mã nguồn mặc định?')) {
@@ -499,6 +532,29 @@ document.getElementById('btnRunDraft').addEventListener('click', () => {
             html += `<div class="alert alert-dark border-secondary py-1 px-2 small mb-2 text-warning">
                         <i class="fas fa-circle-info me-1"></i>${escapeHtml(data.message)}
                      </div>`;
+        }
+
+        if (data.diagnostic) {
+            html += `
+                <div class="alert alert-dark border-info bg-opacity-10 p-3 rounded mb-3">
+                    <div class="d-flex align-items-center gap-2 text-info fw-bold mb-1">
+                        <i class="fas fa-lightbulb"></i>
+                        <span>${escapeHtml(data.diagnostic.title)}</span>
+                    </div>
+                    <div class="text-light small mb-2">${escapeHtml(data.diagnostic.detail)}</div>
+                    ${data.diagnostic.fix_code ? `
+                        <div class="mb-2">
+                            <div class="text-secondary small fw-semibold mb-1">Gợi ý cách viết code chuẩn:</div>
+                            <pre class="bg-black p-2 rounded text-success small mb-0 font-monospace">${escapeHtml(data.diagnostic.fix_code)}</pre>
+                        </div>
+                    ` : ''}
+                    ${data.diagnostic.suggestion ? `
+                        <div class="text-warning small fst-italic">
+                            <i class="fas fa-info-circle me-1"></i>${escapeHtml(data.diagnostic.suggestion)}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
         }
 
         if (data.stdout) {
