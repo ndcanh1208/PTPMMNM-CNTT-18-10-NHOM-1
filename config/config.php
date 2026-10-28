@@ -10,7 +10,7 @@ define('APP_VERSION', '1.0.0');
 
 // Cấu hình Dịch vụ thực thi mã cách ly Piston API (Docker)
 // Lệnh chạy Docker Piston: docker run -d -p 2000:2000 --restart always ghcr.io/engineer-man/piston
-define('PISTON_API_URL', 'http://localhost:2000/api/v2/execute');
+define('PISTON_API_URL', 'http://127.0.0.1:2000/api/v2/execute');
 define('PISTON_TIMEOUT_SEC', 6); // Timeout kết nối HTTP sang Docker container
 
 // Chế độ dự phòng khi chưa bật Docker Piston (Phục vụ kiểm thử giao diện & thuật toán)

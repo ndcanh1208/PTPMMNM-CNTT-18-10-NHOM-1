@@ -63,7 +63,7 @@ class ExecutionService {
             'User-Agent: OnlineJudgeClient/1.0'
         ]);
         curl_setopt($ch, CURLOPT_TIMEOUT, PISTON_TIMEOUT_SEC);
-        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 2);
+        curl_setopt($ch, CURLOPT_CONNECTTIMEOUT_MS, 400);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
 
         $response = curl_exec($ch);
@@ -164,29 +164,114 @@ class ExecutionService {
     private static function localFallbackExecute(string $code, string $lang, string $stdin, int $timeLimit): array {
         $cleanCode = trim($code);
 
-        // 1. Kiểm tra mô phỏng Lỗi biên dịch (Compile Error - CE)
-        if ($lang === 'cpp' && (stripos($cleanCode, 'MissingVariable') !== false || stripos($cleanCode, 'return 0\n') !== false || (substr(trim($cleanCode), -1) !== '}' && substr(trim($cleanCode), -1) !== ';'))) {
-            return [
-                'status'  => VERDICT_CE,
-                'message' => 'error: expected \';\' before \'}\' token',
-                'stdout'  => '',
-                'stderr'  => "solution.cpp: In function 'int main()':\nsolution.cpp:6:5: error: expected ';' before '}' token",
-                'time_ms' => 45
-            ];
+        // ==============================================================
+        // 1. KIỂM TRA LỖI BIÊN DỊCH / CÚ PHÁP (COMPILE ERROR - CE)
+        // Luôn kiểm tra cú pháp trước! Mã lỗi cú pháp không bao giờ chạy đến TLE hay RE
+        // ==============================================================
+
+        // 1.1 Kiểm tra đóng mở ngoặc (), [], {} (Áp dụng cả Python và C++)
+        $bracketError = self::checkBracketMatching($code, $lang);
+        if ($bracketError !== null) {
+            return $bracketError;
         }
 
-        // 2. Kiểm tra mô phỏng Quá thời gian / Lặp vô hạn (TLE)
-        if (preg_match('/while\s*\(\s*(true|1)\s*\)|while\s+True\s*:/i', $cleanCode)) {
-            return [
-                'status'  => VERDICT_TLE,
-                'message' => "Chương trình chạy quá thời gian ({$timeLimit}ms). Phát hiện vòng lặp vô hạn.",
-                'stdout'  => '',
-                'stderr'  => 'Process terminated: Time Limit Exceeded',
-                'time_ms' => $timeLimit
-            ];
+        // 1.2 Kiểm tra cú pháp đặc thù cho PYTHON
+        if ($lang === 'python3') {
+            $lines = explode("\n", $code);
+            foreach ($lines as $lineIdx => $rawLine) {
+                $lineNum = $lineIdx + 1;
+                // Bỏ comment inline và khoảng trắng
+                $withoutComment = preg_replace('/#.*$/', '', $rawLine);
+                $trimmed = trim($withoutComment);
+                if ($trimmed === '') continue;
+
+                // Các câu lệnh khối trong Python (while, for, if, elif, else, def, class, try, except, finally, with)
+                // BẮT BUỘC phải kết thúc bằng dấu hai chấm ':'
+                if (preg_match('/^(while|for|if|elif|else|def|class|try|except|finally|with)\b/i', $trimmed)) {
+                    if (!str_ends_with($trimmed, ':')) {
+                        return [
+                            'status'  => VERDICT_CE,
+                            'message' => "Lỗi cú pháp Python (SyntaxError: expected ':' at line {$lineNum})",
+                            'stdout'  => '',
+                            'stderr'  => "  File \"solution.py\", line {$lineNum}\n    " . trim($rawLine) . "\n    " . str_repeat(' ', max(0, strlen(trim($rawLine)) - 1)) . "^\nSyntaxError: expected ':'",
+                            'time_ms' => 15
+                        ];
+                    }
+                }
+
+                // Phát hiện lệnh print không có ngoặc tròn (cú pháp Python 2 sang 3)
+                if (preg_match('/^print\s+["\'\w]/', $trimmed)) {
+                    return [
+                        'status'  => VERDICT_CE,
+                        'message' => "Lỗi cú pháp Python: print() phải có dấu ngoặc tròn tại dòng {$lineNum}",
+                        'stdout'  => '',
+                        'stderr'  => "  File \"solution.py\", line {$lineNum}\n    " . trim($rawLine) . "\nSyntaxError: Missing parentheses in call to 'print'. Did you mean print(...) ?",
+                        'time_ms' => 15
+                    ];
+                }
+            }
         }
 
-        // 3. Kiểm tra mô phỏng Lỗi khi chạy (Runtime Error - RE)
+        // 1.3 Kiểm tra cú pháp đặc thù cho C++
+        if ($lang === 'cpp') {
+            // Cú pháp while true thiếu ngoặc tròn
+            if (preg_match('/while\s+(true|1)\b/i', $cleanCode) && !preg_match('/while\s*\(/i', $cleanCode)) {
+                return [
+                    'status'  => VERDICT_CE,
+                    'message' => 'Lỗi biên dịch C++: error: expected \'(\' before \'true\'',
+                    'stdout'  => '',
+                    'stderr'  => "solution.cpp: In function 'int main()':\nsolution.cpp:4:11: error: expected '(' before 'true'",
+                    'time_ms' => 45
+                ];
+            }
+
+            // Thiếu dấu chấm phẩy ; hoặc cú pháp C++ sai
+            if (stripos($cleanCode, 'MissingVariable') !== false || 
+                preg_match('/return\s+[^;]+(\s*\}|\s*\n)/i', $cleanCode) ||
+                (substr($cleanCode, -1) !== '}' && substr($cleanCode, -1) !== ';')) {
+                return [
+                    'status'  => VERDICT_CE,
+                    'message' => 'Lỗi biên dịch C++: error: expected \';\' before \'}\' token',
+                    'stdout'  => '',
+                    'stderr'  => "solution.cpp: In function 'int main()':\nsolution.cpp:6:5: error: expected ';' before '}' token",
+                    'time_ms' => 45
+                ];
+            }
+        }
+
+        // ==============================================================
+        // 2. KIỂM TRA QUÁ THỜI GIAN / LẶP VÔ HẠN (TIME_LIMIT_EXCEEDED - TLE)
+        // Chỉ kích hoạt khi cú pháp đã ĐÚNG nhưng thuật toán lặp vô tận
+        // ==============================================================
+        if ($lang === 'python3') {
+            // Trong Python, vòng lặp vô hạn hợp lệ về cú pháp PHẢI CÓ dấu hai chấm ':'
+            if (preg_match('/while\s*\(?\s*(true|1)\s*\)?\s*:/i', $cleanCode) || 
+                preg_match('/while\s+True\s*:/', $cleanCode)) {
+                return [
+                    'status'  => VERDICT_TLE,
+                    'message' => "Chương trình chạy quá giới hạn thời gian ({$timeLimit}ms). Phát hiện vòng lặp vô hạn.",
+                    'stdout'  => '',
+                    'stderr'  => "Process terminated: Time Limit Exceeded (execution exceeded {$timeLimit}ms)",
+                    'time_ms' => $timeLimit
+                ];
+            }
+        } elseif ($lang === 'cpp') {
+            // Trong C++, vòng lặp vô hạn hợp lệ về cú pháp
+            if (preg_match('/while\s*\(\s*(true|1)\s*\)/i', $cleanCode) || 
+                preg_match('/for\s*\(\s*;\s*;\s*\)/', $cleanCode)) {
+                return [
+                    'status'  => VERDICT_TLE,
+                    'message' => "Chương trình chạy quá giới hạn thời gian ({$timeLimit}ms). Phát hiện vòng lặp vô hạn.",
+                    'stdout'  => '',
+                    'stderr'  => "Process terminated: Time Limit Exceeded (execution exceeded {$timeLimit}ms)",
+                    'time_ms' => $timeLimit
+                ];
+            }
+        }
+
+        // ==============================================================
+        // 3. KIỂM TRA LỖI KHI ĐANG CHẠY (RUNTIME ERROR - RE)
+        // ==============================================================
         if (preg_match('/(1\s*\/\s*0|ZeroDivisionError|throw\s+)/i', $cleanCode)) {
             return [
                 'status'  => VERDICT_RE,
@@ -197,7 +282,9 @@ class ExecutionService {
             ];
         }
 
-        // 4. Thực thi logic bài toán tương ứng với stdin
+        // ==============================================================
+        // 4. THỰC THI LOGIC BÀI TOÁN TƯƠNG ỨNG VỚI STDIN
+        // ==============================================================
         $tokens = preg_split('/\s+/', trim($stdin));
         $output = '';
 
@@ -235,5 +322,91 @@ class ExecutionService {
             'stderr'  => '',
             'time_ms' => rand(15, 60)
         ];
+    }
+
+    /**
+     * Kiểm tra đóng mở ngoặc (), [], {} để phát hiện lỗi cú pháp
+     */
+    private static function checkBracketMatching(string $code, string $lang): ?array {
+        $stack = [];
+        $pairs = ['(' => ')', '[' => ']', '{' => '}'];
+        $inString = false;
+        $stringChar = '';
+        $len = strlen($code);
+
+        for ($i = 0; $i < $len; $i++) {
+            $ch = $code[$i];
+
+            // Bỏ qua nội dung trong chuỗi ký tự "..." hoặc '...'
+            if ($inString) {
+                if ($ch === '\\') {
+                    $i++; // Bỏ qua escape
+                    continue;
+                }
+                if ($ch === $stringChar) {
+                    $inString = false;
+                }
+                continue;
+            }
+
+            if ($ch === '"' || $ch === "'") {
+                $inString = true;
+                $stringChar = $ch;
+                continue;
+            }
+
+            // Bỏ qua comment
+            if ($lang === 'python3' && $ch === '#') {
+                while ($i < $len && $code[$i] !== "\n") $i++;
+                continue;
+            }
+            if ($lang === 'cpp' && $ch === '/' && $i + 1 < $len && $code[$i + 1] === '/') {
+                while ($i < $len && $code[$i] !== "\n") $i++;
+                continue;
+            }
+
+            if (isset($pairs[$ch])) {
+                $stack[] = $ch;
+            } elseif (in_array($ch, $pairs)) {
+                if (empty($stack)) {
+                    return [
+                        'status'  => VERDICT_CE,
+                        'message' => "Lỗi cú pháp: Dấu đóng ngoặc '{$ch}' không có ngoặc mở tương ứng",
+                        'stdout'  => '',
+                        'stderr'  => ($lang === 'python3') 
+                            ? "SyntaxError: unmatched '{$ch}'" 
+                            : "error: expected primary-expression before '{$ch}' token",
+                        'time_ms' => 12
+                    ];
+                }
+                $last = array_pop($stack);
+                if ($pairs[$last] !== $ch) {
+                    return [
+                        'status'  => VERDICT_CE,
+                        'message' => "Lỗi cú pháp: Ngoặc mở '{$last}' bị đóng nhầm bằng '{$ch}'",
+                        'stdout'  => '',
+                        'stderr'  => ($lang === 'python3') 
+                            ? "SyntaxError: closing parenthesis '{$ch}' does not match opening parenthesis '{$last}'" 
+                            : "error: expected '{$pairs[$last]}' before '{$ch}'",
+                        'time_ms' => 12
+                    ];
+                }
+            }
+        }
+
+        if (!empty($stack)) {
+            $unclosed = array_pop($stack);
+            return [
+                'status'  => VERDICT_CE,
+                'message' => "Lỗi cú pháp: Dấu ngoặc mở '{$unclosed}' chưa được đóng",
+                'stdout'  => '',
+                'stderr'  => ($lang === 'python3') 
+                    ? "SyntaxError: unexpected EOF while parsing (unclosed '{$unclosed}')" 
+                    : "error: expected '{$pairs[$unclosed]}' at end of input",
+                'time_ms' => 12
+            ];
+        }
+
+        return null;
     }
 }

@@ -481,14 +481,25 @@ document.getElementById('btnRunDraft').addEventListener('click', () => {
         }
 
         let html = '';
-        const statusBadge = (data.status === 'SUCCESS') 
-            ? '<span class="badge bg-success">Chạy thành công</span>' 
-            : `<span class="badge bg-danger">${data.status}</span>`;
+        const verdictBadgeMap = {
+            'SUCCESS': '<span class="badge bg-success px-2 py-1"><i class="fas fa-check-circle me-1"></i>Chạy thành công</span>',
+            'COMPILE_ERROR': '<span class="badge text-white px-2 py-1" style="background:#f97316;"><i class="fas fa-code me-1"></i>Lỗi biên dịch / Cú pháp (CE)</span>',
+            'TIME_LIMIT_EXCEEDED': '<span class="badge bg-warning text-dark px-2 py-1"><i class="fas fa-hourglass-end me-1"></i>Quá thời gian / Lặp vô hạn (TLE)</span>',
+            'RUNTIME_ERROR': '<span class="badge text-white px-2 py-1" style="background:#a855f7;"><i class="fas fa-triangle-exclamation me-1"></i>Lỗi khi chạy (RE)</span>',
+            'SYSTEM_ERROR': '<span class="badge bg-secondary text-white px-2 py-1"><i class="fas fa-server me-1"></i>Lỗi hệ thống (SE)</span>'
+        };
+        const statusBadge = verdictBadgeMap[data.status] || `<span class="badge bg-danger px-2 py-1">${data.status}</span>`;
 
         html += `<div class="d-flex justify-content-between align-items-center mb-2 pb-1 border-bottom border-secondary">
-                    <div>Trạng thái: ${statusBadge}</div>
-                    <div class="text-secondary small">Thời gian: ${data.time_ms}ms</div>
+                    <div>${statusBadge}</div>
+                    <div class="text-secondary small"><i class="fas fa-stopwatch me-1"></i>${data.time_ms}ms</div>
                  </div>`;
+
+        if (data.message && data.status !== 'SUCCESS') {
+            html += `<div class="alert alert-dark border-secondary py-1 px-2 small mb-2 text-warning">
+                        <i class="fas fa-circle-info me-1"></i>${escapeHtml(data.message)}
+                     </div>`;
+        }
 
         if (data.stdout) {
             html += `<div class="mb-2"><span class="text-secondary small fw-bold">Kết quả stdout:</span>
