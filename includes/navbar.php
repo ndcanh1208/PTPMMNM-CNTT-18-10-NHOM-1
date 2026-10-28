@@ -42,80 +42,57 @@ $loggedUser    = getCurrentUser();
                     $roleBadgeClass = ($role === 'ADMIN') ? 'bg-danger' : (($role === 'LECTURER') ? 'bg-primary' : 'bg-success');
                     $roleLabel = ($role === 'ADMIN') ? 'Quản Trị Viên' : (($role === 'LECTURER') ? 'Giảng Viên' : 'Sinh Viên');
                 ?>
-                    <div class="dropdown position-relative">
-                        <button class="btn btn-dark border-secondary btn-sm dropdown-toggle text-white d-flex align-items-center gap-2 px-3 py-1" 
-                                type="button" id="userDropdownBtn" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="fas fa-user-circle text-primary fs-5"></i>
+                    <!-- Menu Tài Khoản Độc Lập (Hoạt động cả khi click lẫn hover) -->
+                    <div class="user-menu-wrapper position-relative">
+                        <button type="button" class="btn btn-dark border-secondary btn-sm text-white d-flex align-items-center gap-2 px-3 py-1 user-menu-trigger" 
+                                id="userMenuBtn" onclick="toggleUserMenu(event)">
+                            <i class="fas fa-circle-user text-primary fs-5"></i>
                             <div class="text-start">
                                 <span class="d-block small fw-bold lh-1"><?php echo htmlspecialchars($loggedUser['full_name']); ?></span>
                                 <span class="badge <?php echo $roleBadgeClass; ?>" style="font-size: 0.65rem; padding: 2px 6px;">
                                     <?php echo $roleLabel; ?>
                                 </span>
                             </div>
+                            <i class="fas fa-chevron-down ms-1 text-secondary" style="font-size: 0.7rem;"></i>
                         </button>
-                        <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end border-secondary shadow" 
-                            id="userDropdownMenu"
-                            style="position: absolute; right: 0; top: 100%; min-width: 220px; z-index: 1060; margin-top: 6px;">
-                            <li class="dropdown-header text-secondary small">
-                                Tài khoản: <code><?php echo htmlspecialchars($loggedUser['username']); ?></code>
-                            </li>
-                            <li><hr class="dropdown-divider border-secondary my-1"></li>
-                            <li>
-                                <a class="dropdown-item small py-2" href="submissions.php">
-                                    <i class="fas fa-clock-rotate-left me-2 text-info"></i>Bài nộp của tôi
+                        
+                        <div class="user-menu-dropdown shadow-lg" id="userMenuDropdown">
+                            <div class="px-3 py-2 border-bottom border-secondary border-opacity-25">
+                                <div class="text-secondary small">Đang đăng nhập với:</div>
+                                <div class="fw-bold text-white small"><?php echo htmlspecialchars($loggedUser['username']); ?></div>
+                                <?php if (!empty($loggedUser['email'])): ?>
+                                    <div class="text-muted" style="font-size: 0.75rem;"><?php echo htmlspecialchars($loggedUser['email']); ?></div>
+                                <?php endif; ?>
+                            </div>
+                            <div class="py-1">
+                                <a class="user-menu-item" href="problems.php">
+                                    <i class="fas fa-code text-primary"></i>
+                                    <span>Danh sách bài tập</span>
                                 </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item small py-2" href="/phpmyadmin/" target="_blank">
-                                    <i class="fas fa-database me-2 text-warning"></i>phpMyAdmin
+                                <a class="user-menu-item" href="submissions.php">
+                                    <i class="fas fa-clock-rotate-left text-info"></i>
+                                    <span>Bài nộp của tôi</span>
                                 </a>
-                            </li>
-                            <li><hr class="dropdown-divider border-secondary my-1"></li>
-                            <li>
-                                <a class="dropdown-item small py-2 text-danger fw-semibold" href="logout.php">
-                                    <i class="fas fa-arrow-right-from-bracket me-2"></i>Đăng xuất
+                                <a class="user-menu-item" href="/phpmyadmin/" target="_blank">
+                                    <i class="fas fa-database text-warning"></i>
+                                    <span>phpMyAdmin (CSDL)</span>
                                 </a>
-                            </li>
-                        </ul>
+                            </div>
+                            <div class="border-top border-secondary border-opacity-25 pt-1 mt-1">
+                                <a class="user-menu-item logout-item text-danger fw-semibold" href="logout.php">
+                                    <i class="fas fa-arrow-right-from-bracket text-danger"></i>
+                                    <span>Đăng xuất</span>
+                                </a>
+                            </div>
+                        </div>
                     </div>
 
-                    <!-- Script xử lý Toggle Dropdown an toàn 100% -->
-                    <script>
-                    (function() {
-                        function initDropdown() {
-                            const btn = document.getElementById('userDropdownBtn');
-                            const menu = document.getElementById('userDropdownMenu');
-                            if (!btn || !menu) return;
+                    <!-- Nút Đăng Xuất Trực Tiếp Bên Cạnh Menu (Luôn sẵn sàng, không sợ lỗi dropdown) -->
+                    <a href="logout.php" class="btn btn-outline-danger btn-sm px-2 py-1 d-flex align-items-center gap-1" title="Đăng xuất khỏi hệ thống">
+                        <i class="fas fa-arrow-right-from-bracket"></i>
+                        <span class="d-none d-sm-inline">Đăng xuất</span>
+                    </a>
 
-                            btn.onclick = function(e) {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                const isShow = menu.classList.contains('show');
-                                document.querySelectorAll('.dropdown-menu.show').forEach(m => m.classList.remove('show'));
-                                if (!isShow) {
-                                    menu.classList.add('show');
-                                    btn.setAttribute('aria-expanded', 'true');
-                                } else {
-                                    menu.classList.remove('show');
-                                    btn.setAttribute('aria-expanded', 'false');
-                                }
-                            };
-
-                            document.addEventListener('click', function(e) {
-                                if (!btn.contains(e.target) && !menu.contains(e.target)) {
-                                    menu.classList.remove('show');
-                                    btn.setAttribute('aria-expanded', 'false');
-                                }
-                            });
-                        }
-
-                        if (document.readyState === 'loading') {
-                            document.addEventListener('DOMContentLoaded', initDropdown);
-                        } else {
-                            initDropdown();
-                        }
-                    })();
-                    </script>
                 <?php else: ?>
                     <a href="login.php" class="btn btn-outline-light btn-sm px-3 py-1">
                         <i class="fas fa-right-to-bracket me-1"></i> Đăng Nhập
@@ -128,3 +105,69 @@ $loggedUser    = getCurrentUser();
         </div>
     </div>
 </nav>
+
+<style>
+/* CSS cho User Menu Dropdown: Tự động hiện khi Hover và giữ mở khi Click */
+.user-menu-wrapper {
+    position: relative;
+    display: inline-block;
+}
+.user-menu-dropdown {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    min-width: 230px;
+    background: #111827;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 10px;
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.65);
+    z-index: 99999 !important;
+}
+.user-menu-dropdown.show {
+    display: block !important;
+}
+/* Hiện khi hover chuột qua nút menu */
+.user-menu-wrapper:hover .user-menu-dropdown {
+    display: block !important;
+}
+.user-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px;
+    color: #e5e7eb;
+    text-decoration: none;
+    font-size: 0.85rem;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+.user-menu-item:hover {
+    background: rgba(99, 102, 241, 0.15);
+    color: #818cf8;
+}
+.user-menu-item.logout-item:hover {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+}
+</style>
+
+<script>
+function toggleUserMenu(e) {
+    if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+    const menu = document.getElementById('userMenuDropdown');
+    if (menu) {
+        menu.classList.toggle('show');
+    }
+}
+
+document.addEventListener('click', function(e) {
+    const wrapper = document.querySelector('.user-menu-wrapper');
+    const menu = document.getElementById('userMenuDropdown');
+    if (wrapper && menu && !wrapper.contains(e.target)) {
+        menu.classList.remove('show');
+    }
+});
+</script>
