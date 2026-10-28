@@ -588,7 +588,7 @@ if (btnJoin) {
             inp.value = inp.value.trim().split(/\s+/).join(' ');
         }
     });
-});
+}
 
 // Nút Đặt lại code mặc định
 document.getElementById('btnResetCode').addEventListener('click', () => {
