@@ -65,6 +65,101 @@ if (!$problem) {
     die("Không tìm thấy bài tập hoặc cơ sở dữ liệu chưa được nạp. Hãy truy cập <a href='database/install.php'>database/install.php</a>.");
 }
 
+// XỬ LÝ CHỈNH SỬA ĐỀ BÀI (DÀNH CHO GIẢNG VIÊN VÀ QUẢN TRỊ VIÊN)
+$editSuccessMsg = null;
+$editErrorMsg = null;
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'edit_problem') {
+    if (!hasRole(['LECTURER', 'ADMIN'])) {
+        $editErrorMsg = 'Bạn không có quyền chỉnh sửa bài tập này!';
+    } else {
+        $newTitle       = trim($_POST['title'] ?? '');
+        $newTopic       = trim($_POST['topic'] ?? 'Cơ bản');
+        $newDifficulty  = $_POST['difficulty'] ?? 'EASY';
+        $newTimeLimit   = max(100, (int)($_POST['time_limit_ms'] ?? 1000));
+        $newMemoryMb    = max(16, (int)($_POST['memory_limit_mb'] ?? 128));
+        $newMemoryKb    = $newMemoryMb * 1024;
+        $newDescription = trim($_POST['description'] ?? '');
+        $saveMode       = $_POST['save_mode'] ?? 'current'; // 'current' hoặc 'new_version'
+        $changeLog      = trim($_POST['change_log'] ?? 'Cập nhật nội dung mô tả đề bài');
+        $sampleIn       = trim($_POST['sample_input'] ?? '');
+        $sampleOut      = trim($_POST['sample_output'] ?? '');
+
+        if (empty($newTitle) || empty($newDescription)) {
+            $editErrorMsg = 'Tiêu đề và nội dung mô tả bài toán không được để trống!';
+        } else {
+            try {
+                $pdo->beginTransaction();
+
+                // 1. Cập nhật thông tin chung bài toán (title, topic, difficulty)
+                $stmtUpProblem = $pdo->prepare("
+                    UPDATE problems 
+                    SET title = ?, topic = ?, difficulty = ?
+                    WHERE id = ?
+                ");
+                $stmtUpProblem->execute([$newTitle, $newTopic, $newDifficulty, $problemId]);
+
+                $currentVersionId = (int)$problem['current_version_id'];
+
+                if ($saveMode === 'new_version') {
+                    // Tạo phiên bản mới v(N+1).0
+                    $nextVerNum = (int)$problem['version_number'] + 1;
+                    $stmtNewVer = $pdo->prepare("
+                        INSERT INTO problem_versions (problem_id, version_number, description, time_limit_ms, memory_limit_kb, change_log, created_by, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+                    ");
+                    $stmtNewVer->execute([$problemId, $nextVerNum, $newDescription, $newTimeLimit, $newMemoryKb, $changeLog, (int)$_SESSION['user']['id']]);
+                    $newVersionId = (int)$pdo->lastInsertId();
+
+                    // Sao chép toàn bộ test cases cũ sang phiên bản mới
+                    $stmtCopyTests = $pdo->prepare("
+                        INSERT INTO test_cases (problem_version_id, input_data, expected_output, is_sample, score_weight, order_index)
+                        SELECT ?, input_data, expected_output, is_sample, score_weight, order_index
+                        FROM test_cases
+                        WHERE problem_version_id = ?
+                    ");
+                    $stmtCopyTests->execute([$newVersionId, $currentVersionId]);
+
+                    // Cập nhật current_version_id trong problems
+                    $pdo->prepare("UPDATE problems SET current_version_id = ? WHERE id = ?")->execute([$newVersionId, $problemId]);
+                    $targetVersionId = $newVersionId;
+                } else {
+                    // Cập nhật trực tiếp phiên bản hiện tại
+                    $stmtUpVer = $pdo->prepare("
+                        UPDATE problem_versions 
+                        SET description = ?, time_limit_ms = ?, memory_limit_kb = ?
+                        WHERE id = ?
+                    ");
+                    $stmtUpVer->execute([$newDescription, $newTimeLimit, $newMemoryKb, $currentVersionId]);
+                    $targetVersionId = $currentVersionId;
+                }
+
+                // Cập nhật test case mẫu 1 nếu có thay đổi
+                if ($sampleIn !== '' || $sampleOut !== '') {
+                    $stmtCheckSample = $pdo->prepare("SELECT id FROM test_cases WHERE problem_version_id = ? AND is_sample = 1 ORDER BY order_index ASC LIMIT 1");
+                    $stmtCheckSample->execute([$targetVersionId]);
+                    $sampleCase = $stmtCheckSample->fetch();
+
+                    if ($sampleCase) {
+                        $pdo->prepare("UPDATE test_cases SET input_data = ?, expected_output = ? WHERE id = ?")
+                            ->execute([$sampleIn, $sampleOut, (int)$sampleCase['id']]);
+                    } else {
+                        $pdo->prepare("INSERT INTO test_cases (problem_version_id, input_data, expected_output, is_sample, score_weight, order_index) VALUES (?, ?, ?, 1, 20, 1)")
+                            ->execute([$targetVersionId, $sampleIn, $sampleOut]);
+                    }
+                }
+
+                $pdo->commit();
+                header("Location: solve.php?id={$problemId}&msg=updated");
+                exit;
+            } catch (Exception $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                $editErrorMsg = 'Lỗi cập nhật đề bài: ' . $e->getMessage();
+            }
+        }
+    }
+}
+
 // BỘ MẪU MÃ NGUỒN KHỞI TẠO CHUẨN XÁC THEO TỪNG BÀI TOÁN
 $probCode = strtoupper(trim($problem['code'] ?? ''));
 
@@ -113,9 +208,25 @@ require_once __DIR__ . '/includes/navbar.php';
 ?>
 
 <div class="container-fluid px-lg-4 py-3">
+    <?php if (isset($_GET['msg']) && $_GET['msg'] === 'updated'): ?>
+        <div class="alert alert-success alert-dismissible fade show border-success mb-3 shadow-sm" role="alert">
+            <i class="fas fa-check-circle me-2"></i>
+            <strong>Thành công!</strong> Đã cập nhật thông tin và mô tả đề bài toán thành công!
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert"></button>
+        </div>
+    <?php endif; ?>
+
+    <?php if (!empty($editErrorMsg)): ?>
+        <div class="alert alert-danger alert-dismissible fade show mb-3" role="alert">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <?php echo htmlspecialchars($editErrorMsg); ?>
+            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert"></button>
+        </div>
+    <?php endif; ?>
+
     <!-- Header thông tin bài tập -->
     <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-        <div class="d-flex align-items-center gap-2">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
             <a href="problems.php" class="btn btn-outline-secondary btn-sm rounded-circle me-1" title="Quay lại">
                 <i class="fas fa-arrow-left"></i>
             </a>
@@ -129,6 +240,12 @@ require_once __DIR__ . '/includes/navbar.php';
             <span class="badge bg-dark border border-secondary text-secondary">
                 Phiên bản v<?php echo $problem['version_number']; ?>
             </span>
+
+            <?php if (hasRole(['LECTURER', 'ADMIN'])): ?>
+                <button type="button" class="btn btn-warning btn-sm ms-2 px-3 fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalEditProblem">
+                    <i class="fas fa-pen-to-square me-1"></i>Sửa Đề Bài
+                </button>
+            <?php endif; ?>
         </div>
 
         <div class="d-flex align-items-center gap-3 text-secondary small">
@@ -145,9 +262,16 @@ require_once __DIR__ . '/includes/navbar.php';
         <!-- CỘT TRÁI: Mô tả đề bài & Test case ví dụ -->
         <div class="col-lg-5">
             <div class="custom-card p-4 h-100 d-flex flex-column overflow-y-auto" style="max-height: 82vh;">
-                <h5 class="fw-bold text-light border-bottom border-secondary pb-2 mb-3">
-                    <i class="fas fa-file-lines text-primary me-2"></i>Mô Tả Bài Toán
-                </h5>
+                <div class="d-flex justify-content-between align-items-center border-bottom border-secondary pb-2 mb-3">
+                    <h5 class="fw-bold text-light mb-0">
+                        <i class="fas fa-file-lines text-primary me-2"></i>Mô Tả Bài Toán
+                    </h5>
+                    <?php if (hasRole(['LECTURER', 'ADMIN'])): ?>
+                        <button type="button" class="btn btn-outline-warning btn-sm py-0 px-2" data-bs-toggle="modal" data-bs-target="#modalEditProblem" title="Chỉnh sửa nội dung đề bài">
+                            <i class="fas fa-pen me-1"></i>Sửa
+                        </button>
+                    <?php endif; ?>
+                </div>
 
                 <div class="problem-description text-light mb-4" style="line-height: 1.7; white-space: pre-line;">
                     <?php echo htmlspecialchars($problem['description']); ?>
@@ -1024,5 +1148,136 @@ function escapeHtml(text) {
 .bg-purple { background-color: #8b5cf6 !important; }
 .bg-orange { background-color: #ea580c !important; }
 </style>
+
+<?php if (hasRole(['LECTURER', 'ADMIN'])): ?>
+<!-- Modal Chỉnh Sửa Bài Toán (Dành cho Giảng Viên & Quản Trị Viên) -->
+<div class="modal fade" id="modalEditProblem" tabindex="-1" aria-labelledby="modalEditProblemLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content bg-dark border border-secondary text-light shadow-lg">
+            <div class="modal-header border-secondary border-opacity-50">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="rounded-circle p-2 bg-warning bg-opacity-10 text-warning">
+                        <i class="fas fa-pen-to-square"></i>
+                    </div>
+                    <div>
+                        <h5 class="modal-title fw-bold text-white mb-0" id="modalEditProblemLabel">Chỉnh Sửa Đề Bài &amp; Thông Số Bài Toán</h5>
+                        <div class="text-secondary small">Mã bài: <span class="font-monospace text-info"><?php echo htmlspecialchars($problem['code']); ?></span> &bull; Đang ở phiên bản: <span class="badge bg-secondary">v<?php echo $problem['version_number']; ?></span></div>
+                    </div>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            
+            <form method="POST" action="solve.php?id=<?php echo $problem['id']; ?>">
+                <input type="hidden" name="action" value="edit_problem">
+                <div class="modal-body p-4">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-7">
+                            <label class="form-label text-secondary small fw-bold">Tiêu Đề Bài Toán <span class="text-danger">*</span></label>
+                            <input type="text" name="title" class="form-control bg-black border-secondary text-white" value="<?php echo htmlspecialchars($problem['title']); ?>" required>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label text-secondary small fw-bold">Chủ Đề (Topic)</label>
+                            <input type="text" name="topic" class="form-control bg-black border-secondary text-white" value="<?php echo htmlspecialchars($problem['topic'] ?? 'Cơ bản'); ?>" placeholder="Ví dụ: Cấu trúc điều khiển, Mảng...">
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label text-secondary small fw-bold">Mức Độ Khó</label>
+                            <select name="difficulty" class="form-select bg-black border-secondary text-white">
+                                <option value="EASY" <?php echo ($problem['difficulty'] === 'EASY') ? 'selected' : ''; ?>>Dễ (EASY)</option>
+                                <option value="MEDIUM" <?php echo ($problem['difficulty'] === 'MEDIUM') ? 'selected' : ''; ?>>Trung Bình (MEDIUM)</option>
+                                <option value="HARD" <?php echo ($problem['difficulty'] === 'HARD') ? 'selected' : ''; ?>>Khó (HARD)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-secondary small fw-bold">Giới Hạn Thời Gian (ms) <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <input type="number" name="time_limit_ms" class="form-control bg-black border-secondary text-white" value="<?php echo (int)$problem['time_limit_ms']; ?>" min="100" max="10000" step="100" required>
+                                <span class="input-group-text bg-dark border-secondary text-secondary">ms</span>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label text-secondary small fw-bold">Giới Hạn Bộ Nhớ (MB) <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <input type="number" name="memory_limit_mb" class="form-control bg-black border-secondary text-white" value="<?php echo round($problem['memory_limit_kb'] / 1024); ?>" min="16" max="1024" step="16" required>
+                                <span class="input-group-text bg-dark border-secondary text-secondary">MB</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label text-secondary small fw-bold">Nội Dung Đề Bài Chi Tiết (Mô tả, Input, Output) <span class="text-danger">*</span></label>
+                        <textarea name="description" class="form-control bg-black border-secondary text-white font-monospace" rows="8" style="font-size: 13.5px; line-height: 1.6;" placeholder="Mô tả bài toán, định dạng dữ liệu vào, dữ liệu ra..." required><?php echo htmlspecialchars($problem['description']); ?></textarea>
+                    </div>
+
+                    <?php 
+                    $sample1In = !empty($samples[0]) ? $samples[0]['input_data'] : '';
+                    $sample1Out = !empty($samples[0]) ? $samples[0]['expected_output'] : '';
+                    ?>
+                    <div class="p-3 bg-black bg-opacity-50 border border-secondary border-opacity-50 rounded-3 mb-3">
+                        <div class="fw-bold text-success small mb-2">
+                            <i class="fas fa-vial me-1"></i>Ví Dụ Công Khai #1 (Sample Test Case 1)
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <label class="text-secondary small">Đầu vào mẫu (Sample Input):</label>
+                                <textarea name="sample_input" class="form-control bg-dark border-secondary text-white font-monospace" rows="2" style="font-size: 13px;"><?php echo htmlspecialchars($sample1In); ?></textarea>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="text-secondary small">Đầu ra mẫu (Expected Output):</label>
+                                <textarea name="sample_output" class="form-control bg-dark border-secondary text-white font-monospace" rows="2" style="font-size: 13px;"><?php echo htmlspecialchars($sample1Out); ?></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="p-3 bg-dark border border-secondary border-opacity-50 rounded-3">
+                        <label class="form-label text-warning small fw-bold mb-2">
+                            <i class="fas fa-code-branch me-1"></i>Chế Độ Lưu Phiên Bản (Quy chuẩn Đề tài 20)
+                        </label>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="save_mode" id="modeCurrent" value="current" checked>
+                            <label class="form-check-label text-light small" for="modeCurrent">
+                                <strong>Lưu cập nhật trực tiếp vào phiên bản hiện tại v<?php echo $problem['version_number']; ?></strong> (Thích hợp khi sửa chính tả, câu chữ mô tả)
+                            </label>
+                        </div>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="radio" name="save_mode" id="modeNewVer" value="new_version">
+                            <label class="form-check-label text-light small" for="modeNewVer">
+                                <strong>Tạo phiên bản mới (v<?php echo $problem['version_number'] + 1; ?>.0)</strong> (Bảo tồn lịch sử phiên bản cũ, phù hợp khi sửa test case hoặc time limit)
+                            </label>
+                        </div>
+                        <div id="newVerLogWrapper" class="mt-2 d-none">
+                            <input type="text" name="change_log" class="form-control form-control-sm bg-black border-secondary text-white" placeholder="Ghi chú thay đổi (Ví dụ: Cập nhật giới hạn thời gian và bổ sung mô tả)">
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-footer border-secondary border-opacity-50">
+                    <button type="button" class="btn btn-outline-secondary btn-sm px-3" data-bs-dismiss="modal">Hủy bỏ</button>
+                    <button type="submit" class="btn btn-warning btn-sm px-4 fw-bold">
+                        <i class="fas fa-floppy-disk me-1"></i>Lưu Thay Đổi Đề Bài
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+document.querySelectorAll('input[name="save_mode"]').forEach(radio => {
+    radio.addEventListener('change', (e) => {
+        const logWrapper = document.getElementById('newVerLogWrapper');
+        if (logWrapper) {
+            if (e.target.value === 'new_version') {
+                logWrapper.classList.remove('d-none');
+            } else {
+                logWrapper.classList.add('d-none');
+            }
+        }
+    });
+});
+</script>
+<?php endif; ?>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

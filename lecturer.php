@@ -296,6 +296,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
+
+    // 4. CHỈNH SỬA ĐỀ BÀI VÀ THÔNG SỐ BÀI TẬP
+    elseif ($action === 'edit_problem') {
+        $problemId      = (int)($_POST['problem_id'] ?? 0);
+        $newTitle       = trim($_POST['title'] ?? '');
+        $newTopic       = trim($_POST['topic'] ?? 'Cơ bản');
+        $newDifficulty  = $_POST['difficulty'] ?? 'EASY';
+        $newTimeLimit   = max(100, (int)($_POST['time_limit_ms'] ?? 1000));
+        $newMemoryMb    = max(16, (int)($_POST['memory_limit_mb'] ?? 128));
+        $newMemoryKb    = $newMemoryMb * 1024;
+        $newDescription = trim($_POST['description'] ?? '');
+
+        if ($problemId <= 0 || empty($newTitle) || empty($newDescription)) {
+            $errorMsg = 'Vui lòng điền đầy đủ tiêu đề và nội dung mô tả đề bài!';
+        } else {
+            try {
+                $pdo->beginTransaction();
+                $pdo->prepare("UPDATE problems SET title = ?, topic = ?, difficulty = ? WHERE id = ?")
+                    ->execute([$newTitle, $newTopic, $newDifficulty, $problemId]);
+
+                $curVerId = (int)$pdo->query("SELECT current_version_id FROM problems WHERE id = {$problemId}")->fetchColumn();
+                if ($curVerId > 0) {
+                    $pdo->prepare("UPDATE problem_versions SET description = ?, time_limit_ms = ?, memory_limit_kb = ? WHERE id = ?")
+                        ->execute([$newDescription, $newTimeLimit, $newMemoryKb, $curVerId]);
+                }
+
+                $pdo->commit();
+                $successMsg = "Đã cập nhật thành công thông tin và nội dung đề bài [{$problemId}] {$newTitle}!";
+            } catch (Exception $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                $errorMsg = 'Lỗi cập nhật đề bài: ' . $e->getMessage();
+            }
+        }
+    }
 }
 
 // ==============================================================
@@ -304,7 +338,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // 1. Danh sách bài tập
 $stmtProblems = $pdo->query("
     SELECT p.id, p.code, p.title, p.topic, p.difficulty, p.created_at,
-           pv.version_number, pv.time_limit_ms,
+           pv.version_number, pv.time_limit_ms, pv.memory_limit_kb, pv.description,
            (SELECT COUNT(*) FROM test_cases tc WHERE tc.problem_version_id = pv.id) as test_count,
            (SELECT COUNT(*) FROM submissions s WHERE s.problem_id = p.id) as sub_count
     FROM problems p
@@ -457,14 +491,26 @@ require_once __DIR__ . '/includes/navbar.php';
                                         <td><span class="text-light fw-bold"><?php echo $p['test_count']; ?></span> tests</td>
                                         <td><span class="text-secondary"><?php echo $p['sub_count']; ?> bài</span></td>
                                         <td class="pe-4 text-end text-nowrap">
-                                            <a href="solve.php?id=<?php echo $p['id']; ?>" class="btn btn-outline-info btn-sm py-1 px-2" title="Xem đề và làm thử">
-                                                <i class="fas fa-eye me-1"></i>Xem đề
+                                            <button type="button" class="btn btn-warning btn-sm py-1 px-2 btn-edit-prob-lecturer" 
+                                                    data-id="<?php echo $p['id']; ?>" 
+                                                    data-code="<?php echo htmlspecialchars($p['code']); ?>" 
+                                                    data-title="<?php echo htmlspecialchars($p['title']); ?>" 
+                                                    data-topic="<?php echo htmlspecialchars($p['topic']); ?>" 
+                                                    data-diff="<?php echo $p['difficulty']; ?>" 
+                                                    data-time="<?php echo $p['time_limit_ms']; ?>" 
+                                                    data-ram="<?php echo round(($p['memory_limit_kb'] ?? 131072) / 1024); ?>" 
+                                                    data-desc="<?php echo htmlspecialchars($p['description'] ?? ''); ?>" 
+                                                    title="Sửa đề bài">
+                                                <i class="fas fa-edit me-1"></i>Sửa đề
+                                            </button>
+                                            <a href="solve.php?id=<?php echo $p['id']; ?>" class="btn btn-outline-info btn-sm py-1 px-2 ms-1" title="Xem đề và làm thử">
+                                                <i class="fas fa-eye me-1"></i>Làm thử
                                             </a>
                                             <button type="button" class="btn btn-outline-success btn-sm py-1 px-2 ms-1 btn-quick-autogen" data-problem-id="<?php echo $p['id']; ?>" data-problem-title="<?php echo htmlspecialchars($p['title']); ?>" title="Tự động sinh 5 testcases biên">
                                                 <i class="fas fa-bolt me-1"></i>Sinh test
                                             </button>
-                                            <button type="button" class="btn btn-outline-warning btn-sm py-1 px-2 ms-1 btn-quick-newver" data-problem-id="<?php echo $p['id']; ?>" data-problem-title="<?php echo htmlspecialchars($p['title']); ?>">
-                                                <i class="fas fa-code-branch me-1"></i>Thủ công
+                                            <button type="button" class="btn btn-outline-secondary btn-sm py-1 px-2 ms-1 btn-quick-newver" data-problem-id="<?php echo $p['id']; ?>" data-problem-title="<?php echo htmlspecialchars($p['title']); ?>" title="Tạo phiên bản mới thủ công">
+                                                <i class="fas fa-code-branch me-1"></i>Tạo bản v+
                                             </button>
                                         </td>
                                     </tr>
@@ -816,7 +862,91 @@ require_once __DIR__ . '/includes/navbar.php';
     </div>
 </div>
 
+<!-- ============================================================== -->
+<!-- MODAL 4: CHỈNH SỬA ĐỀ BÀI (DÀNH CHO GIẢNG VIÊN) -->
+<!-- ============================================================== -->
+<div class="modal fade" id="modalEditProblemLecturer" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content bg-dark text-white border border-secondary shadow-lg">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title fw-bold text-warning">
+                    <i class="fas fa-pen-to-square me-2"></i>Chỉnh Sửa Thông Tin &amp; Đề Bài
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST">
+                <input type="hidden" name="action" value="edit_problem">
+                <input type="hidden" name="problem_id" id="editProblemId">
+                <div class="modal-body p-4">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-secondary">Mã bài:</label>
+                            <input type="text" id="editProblemCode" class="form-control bg-black text-info font-monospace border-secondary" readonly>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label small fw-bold text-secondary">Tiêu đề bài tập <span class="text-danger">*</span>:</label>
+                            <input type="text" name="title" id="editProblemTitle" class="form-control bg-black text-white border-secondary" required>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-secondary">Chủ đề:</label>
+                            <input type="text" name="topic" id="editProblemTopic" class="form-control bg-black text-white border-secondary">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-secondary">Độ khó:</label>
+                            <select name="difficulty" id="editProblemDifficulty" class="form-select bg-black text-white border-secondary">
+                                <option value="EASY">Dễ (EASY)</option>
+                                <option value="MEDIUM">Trung bình (MEDIUM)</option>
+                                <option value="HARD">Khó (HARD)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-secondary">Giới hạn thời gian (ms):</label>
+                            <input type="number" name="time_limit_ms" id="editProblemTimeLimit" class="form-control bg-black text-white border-secondary" min="100" max="10000" step="100" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-secondary">Giới hạn bộ nhớ (MB):</label>
+                        <input type="number" name="memory_limit_mb" id="editProblemMemoryLimit" class="form-control bg-black text-white border-secondary" min="16" max="1024" step="16" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-secondary">Nội Dung Đề Bài Chi Tiết <span class="text-danger">*</span>:</label>
+                        <textarea name="description" id="editProblemDescription" class="form-control bg-black text-white font-monospace border-secondary" rows="8" style="font-size: 13.5px; line-height: 1.6;" required></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-secondary">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-warning btn-sm px-4 fw-bold">
+                        <i class="fas fa-floppy-disk me-1"></i> Lưu Cập Nhật Đề Bài
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
+// Nút sửa đề bài từ bảng bài tập
+document.querySelectorAll('.btn-edit-prob-lecturer').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.getElementById('editProblemId').value = btn.dataset.id;
+        document.getElementById('editProblemCode').value = btn.dataset.code;
+        document.getElementById('editProblemTitle').value = btn.dataset.title;
+        document.getElementById('editProblemTopic').value = btn.dataset.topic;
+        document.getElementById('editProblemDifficulty').value = btn.dataset.diff;
+        document.getElementById('editProblemTimeLimit').value = btn.dataset.time;
+        document.getElementById('editProblemMemoryLimit').value = btn.dataset.ram;
+        document.getElementById('editProblemDescription').value = btn.dataset.desc;
+
+        const modal = new bootstrap.Modal(document.getElementById('modalEditProblemLecturer'));
+        modal.show();
+    });
+});
+
 // Nút sinh test nhanh từ bảng bài tập
 document.querySelectorAll('.btn-quick-autogen').forEach(btn => {
     btn.addEventListener('click', () => {
