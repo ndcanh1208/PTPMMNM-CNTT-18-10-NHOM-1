@@ -54,6 +54,7 @@ try {
         $draft = $stmtDraft->fetch();
         if ($draft) {
             $draftCode = $draft['draft_code'];
+            $draftLang = $draft['language_id'];
         }
     }
 } catch (Exception $e) {
@@ -64,8 +65,48 @@ if (!$problem) {
     die("Không tìm thấy bài tập hoặc cơ sở dữ liệu chưa được nạp. Hãy truy cập <a href='database/install.php'>database/install.php</a>.");
 }
 
-$defaultPythonStarter = "# Viết mã giải bài bằng Python 3 tại đây\n# Ví dụ nhập dữ liệu đơn giản, quen thuộc:\na, b = map(int, input().split())\nprint(a + b)\n";
-$initialEditorCode = !empty($draftCode) ? $draftCode : $defaultPythonStarter;
+// BỘ MẪU MÃ NGUỒN KHỞI TẠO CHUẨN XÁC THEO TỪNG BÀI TOÁN
+$probCode = strtoupper(trim($problem['code'] ?? ''));
+
+$starterTemplates = [
+    'SUM_TWO_NUMBERS' => [
+        'python3' => "# Đọc 2 số nguyên a và b trên cùng một dòng, in ra tổng a + b\na, b = map(int, input().split())\nprint(a + b)\n",
+        'cpp' => "// Tính tổng hai số nguyên a và b\n#include <iostream>\nusing namespace std;\n\nint main() {\n    long long a, b;\n    if (cin >> a >> b) {\n        cout << a + b << \"\\n\";\n    }\n    return 0;\n}\n"
+    ],
+    'PRIME_CHECK' => [
+        'python3' => "# Kiểm tra số nguyên tố: In YES nếu n là số nguyên tố, ngược lại in NO\nimport math\n\nn = int(input().strip())\n\ndef is_prime(x):\n    if x < 2:\n        return False\n    for i in range(2, int(math.isqrt(x)) + 1):\n        if x % i == 0:\n            return False\n    return True\n\nprint(\"YES\" if is_prime(n) else \"NO\")\n",
+        'cpp' => "// Kiểm tra số nguyên tố: In YES nếu n là số nguyên tố, ngược lại in NO\n#include <iostream>\nusing namespace std;\n\nbool isPrime(long long n) {\n    if (n < 2) return false;\n    for (long long i = 2; i * i <= n; i++) {\n        if (n % i == 0) return false;\n    }\n    return true;\n}\n\nint main() {\n    long long n;\n    if (cin >> n) {\n        cout << (isPrime(n) ? \"YES\" : \"NO\") << \"\\n\";\n    }\n    return 0;\n}\n"
+    ],
+    'REVERSE_ARRAY' => [
+        'python3' => "# Đọc N và in ra mảng theo thứ tự đảo ngược\nn = int(input().strip())\narr = list(map(int, input().split()))\nprint(*(arr[::-1]))\n",
+        'cpp' => "// Đọc N và in ra mảng theo thứ tự đảo ngược\n#include <iostream>\n#include <vector>\nusing namespace std;\n\nint main() {\n    int n;\n    if (cin >> n) {\n        vector<long long> a(n);\n        for (int i = 0; i < n; i++) cin >> a[i];\n        for (int i = n - 1; i >= 0; i--) {\n            cout << a[i] << (i > 0 ? \" \" : \"\");\n        }\n        cout << \"\\n\";\n    }\n    return 0;\n}\n"
+    ],
+    'PALINDROME_STRING' => [
+        'python3' => "# Kiểm tra chuỗi đối xứng: In YES nếu đối xứng, ngược lại in NO\ns = input().strip()\nprint(\"YES\" if s == s[::-1] else \"NO\")\n",
+        'cpp' => "// Kiểm tra chuỗi đối xứng: In YES nếu đối xứng, ngược lại in NO\n#include <iostream>\n#include <string>\n#include <algorithm>\nusing namespace std;\n\nint main() {\n    string s;\n    if (cin >> s) {\n        string rev = s;\n        reverse(rev.begin(), rev.end());\n        cout << (s == rev ? \"YES\" : \"NO\") << \"\\n\";\n    }\n    return 0;\n}\n"
+    ],
+    'SECOND_LARGEST' => [
+        'python3' => "# Tìm phần tử lớn thứ hai trong mảng N số nguyên\nn = int(input().strip())\narr = list(map(int, input().split()))\nst = sorted(list(set(arr)))\nprint(st[-2] if len(st) >= 2 else st[0])\n",
+        'cpp' => "// Tìm phần tử lớn thứ hai trong mảng N số nguyên\n#include <iostream>\n#include <vector>\n#include <set>\nusing namespace std;\n\nint main() {\n    int n;\n    if (cin >> n) {\n        set<long long> st;\n        for (int i = 0; i < n; i++) {\n            long long x; cin >> x;\n            st.insert(x);\n        }\n        if (st.size() >= 2) {\n            auto it = st.end();\n            --it; --it;\n            cout << *it << \"\\n\";\n        }\n    }\n    return 0;\n}\n"
+    ],
+    'FIBONACCI_N' => [
+        'python3' => "# Tìm số Fibonacci thứ N (F_0 = 0, F_1 = 1, ...)\nn = int(input().strip())\nf = [0, 1]\nfor i in range(2, n + 1):\n    f.append(f[i - 1] + f[i - 2])\nprint(f[n])\n",
+        'cpp' => "// Tìm số Fibonacci thứ N (F_0 = 0, F_1 = 1, ...)\n#include <iostream>\nusing namespace std;\n\nint main() {\n    int n;\n    if (cin >> n) {\n        if (n <= 1) {\n            cout << n << \"\\n\";\n        } else {\n            long long a = 0, b = 1;\n            for (int i = 2; i <= n; i++) {\n                long long c = a + b;\n                a = b;\n                b = c;\n            }\n            cout << b << \"\\n\";\n        }\n    }\n    return 0;\n}\n"
+    ],
+    'FACTORIAL_CALC' => [
+        'python3' => "# Tính giai thừa N! = 1 * 2 * ... * N\nimport math\nn = int(input().strip())\nprint(math.factorial(n))\n",
+        'cpp' => "// Tính giai thừa N! = 1 * 2 * ... * N\n#include <iostream>\nusing namespace std;\n\nint main() {\n    int n;\n    if (cin >> n) {\n        long long ans = 1;\n        for (int i = 2; i <= n; i++) ans *= i;\n        cout << ans << \"\\n\";\n    }\n    return 0;\n}\n"
+    ]
+];
+
+$defaultStarter = [
+    'python3' => "# Viết mã giải bài bằng Python 3 tại đây\nimport sys\n\n# Đọc dữ liệu từ stdin và in kết quả ra stdout\nline = sys.stdin.readline().strip()\n",
+    'cpp' => "// Viết mã giải bài bằng C++ 17 tại đây\n#include <iostream>\nusing namespace std;\n\nint main() {\n    ios_base::sync_with_stdio(false);\n    cin.tie(NULL);\n    \n    // Viết logic tại đây\n    \n    return 0;\n}\n"
+];
+
+$currentStarter = $starterTemplates[$probCode] ?? $defaultStarter;
+$initialLang = !empty($draftLang) ? $draftLang : 'python3';
+$initialEditorCode = !empty($draftCode) ? $draftCode : $currentStarter[$initialLang];
 
 require_once __DIR__ . '/includes/header.php';
 require_once __DIR__ . '/includes/navbar.php';
@@ -318,45 +359,23 @@ require_once __DIR__ . '/includes/navbar.php';
 <script src="assets/codemirror/addon/matchbrackets.min.js"></script>
 
 <script>
-// Mẫu mã nguồn mặc định
-const starterCode = {
-    python3: `# Viết mã giải bài bằng Python 3 tại đây:
-# Cách nhập 2 số trên cùng 1 dòng quen thuộc:
-a, b = map(int, input().split())
-print(a + b)
-`,
-    cpp: `// Viết mã giải bài bằng C++ 17 tại đây
-#include <iostream>
-#include <vector>
-#include <string>
-
-using namespace std;
-
-int main() {
-    ios_base::sync_with_stdio(false);
-    cin.tie(NULL);
-    
-    long long a, b;
-    if (cin >> a >> b) {
-        cout << a + b << "\\n";
-    }
-    
-    return 0;
-}
-`
-};
+// Mẫu mã nguồn mặc định theo bài tập
+const starterCode = <?php echo json_encode($currentStarter); ?>;
 
 let cmEditor = null;
 let monacoEditor = null;
 const problemId = <?php echo (int)$problem['id']; ?>;
 let savedDraftCode = <?php echo json_encode($draftCode); ?>;
 const langSelect = document.getElementById('selectLanguage');
+if (langSelect) {
+    langSelect.value = <?php echo json_encode($initialLang); ?>;
+}
 const fallbackTextarea = document.getElementById('codeFallback');
 const modeBadge = document.getElementById('editorModeBadge');
 const statusWrapper = document.getElementById('monacoStatusWrapper');
 
-const initialLang = langSelect.value;
-const initialCode = savedDraftCode || starterCode[initialLang];
+const initialLang = langSelect ? langSelect.value : 'python3';
+const initialCode = savedDraftCode || (starterCode[initialLang] || '');
 
 // 1. Khởi tạo CodeMirror cục bộ ngay lập tức (2ms, 0ms blocking)
 try {
@@ -515,8 +534,13 @@ langSelect.addEventListener('change', (e) => {
         const monacoLang = lang === 'python3' ? 'python' : 'cpp';
         monaco.editor.setModelLanguage(monacoEditor.getModel(), monacoLang);
     }
-    if (!savedDraftCode) {
-        setCode(starterCode[lang]);
+
+    // Nếu người dùng chưa gõ code riêng hoặc đang giữ nguyên mẫu cũ -> đổi sang mẫu chuẩn của ngôn ngữ mới
+    const currentCode = getCode().trim();
+    const otherLang = (lang === 'python3') ? 'cpp' : 'python3';
+    const otherStarter = (starterCode[otherLang] || '').trim();
+    if (!currentCode || currentCode === otherStarter) {
+        setCode(starterCode[lang] || '');
     }
 });
 

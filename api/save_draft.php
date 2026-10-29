@@ -35,7 +35,7 @@ try {
     $stmt = $pdo->prepare("
         INSERT INTO code_drafts (user_id, problem_id, language_id, draft_code, updated_at)
         VALUES (?, ?, ?, ?, NOW())
-        ON DUPLICATE KEY UPDATE draft_code = VALUES(draft_code), updated_at = NOW()
+        ON DUPLICATE KEY UPDATE draft_code = VALUES(draft_code), language_id = VALUES(language_id), updated_at = NOW()
     ");
     $stmt->execute([$userId, $problemId, $languageId, $draftCode]);
 
