@@ -24,6 +24,107 @@ $lecturerId  = (int)$currentUser['id'];
 $successMsg = null;
 $errorMsg   = null;
 
+// BẢNG MẪU MÃ NGUỒN GIẢI CHUẨN ĐỂ GỢI Ý CHO GIẢNG VIÊN
+$starterSolutionTemplates = [
+    'SUM_TWO_NUMBERS' => [
+        'python3' => "a, b = map(int, input().split())\nprint(a + b)\n",
+        'cpp' => "#include <iostream>\nusing namespace std;\n\nint main() {\n    long long a, b;\n    if (cin >> a >> b) {\n        cout << a + b << endl;\n    }\n    return 0;\n}\n"
+    ],
+    'PRIME_CHECK' => [
+        'python3' => "import math\nn = int(input().strip())\n\ndef is_prime(x):\n    if x < 2: return False\n    for i in range(2, int(math.isqrt(x)) + 1):\n        if x % i == 0: return False\n    return True\n\nprint('YES' if is_prime(n) else 'NO')\n",
+        'cpp' => "#include <iostream>\nusing namespace std;\n\nbool isPrime(long long n) {\n    if (n < 2) return false;\n    for (long long i = 2; i * i <= n; i++) {\n        if (n % i == 0) return false;\n    }\n    return true;\n}\n\nint main() {\n    long long n;\n    if (cin >> n) cout << (isPrime(n) ? \"YES\" : \"NO\") << endl;\n    return 0;\n}\n"
+    ],
+    'REVERSE_ARRAY' => [
+        'python3' => "n = int(input().strip())\narr = list(map(int, input().split()))\nprint(*(arr[::-1]))\n",
+        'cpp' => "#include <iostream>\n#include <vector>\nusing namespace std;\n\nint main() {\n    int n;\n    if (cin >> n) {\n        vector<long long> a(n);\n        for (int i = 0; i < n; i++) cin >> a[i];\n        for (int i = n - 1; i >= 0; i--) cout << a[i] << (i > 0 ? \" \" : \"\");\n        cout << endl;\n    }\n    return 0;\n}\n"
+    ],
+    'PALINDROME_STRING' => [
+        'python3' => "s = input().strip()\nprint('YES' if s == s[::-1] else 'NO')\n",
+        'cpp' => "#include <iostream>\n#include <string>\n#include <algorithm>\nusing namespace std;\n\nint main() {\n    string s;\n    if (cin >> s) {\n        string r = s;\n        reverse(r.begin(), r.end());\n        cout << (s == r ? \"YES\" : \"NO\") << endl;\n    }\n    return 0;\n}\n"
+    ]
+];
+
+// Hàm sinh danh sách đầu vào (Inputs) đa dạng từ nhỏ, biên, đến cực lớn
+function generateProblemInputs(string $probCode, int $count): array {
+    $code = strtoupper(trim($probCode));
+    $inputs = [];
+
+    if ($code === 'SUM_TWO_NUMBERS') {
+        $inputs[] = "10 25";
+        $inputs[] = "0 0";
+        $inputs[] = "-5 5";
+        $inputs[] = "-450 -550";
+        $inputs[] = "1000000 -1000000";
+        $inputs[] = "9876543210 1234567890";
+        $inputs[] = "-9999999999 9999999999";
+        for ($i = count($inputs); $i < $count; $i++) {
+            $a = random_int(-1000000000, 1000000000);
+            $b = random_int(-1000000000, 1000000000);
+            $inputs[] = "$a $b";
+        }
+    } elseif ($code === 'PRIME_CHECK') {
+        $inputs[] = "7";
+        $inputs[] = "1";
+        $inputs[] = "2";
+        $inputs[] = "0";
+        $inputs[] = "-5";
+        $inputs[] = "999999";
+        $inputs[] = "1000003";
+        $inputs[] = "9999991";
+        $knownPrimes = [11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 10007, 10009, 100003, 1000033];
+        for ($i = count($inputs); $i < $count; $i++) {
+            if ($i % 2 === 0) {
+                $inputs[] = (string)($knownPrimes[array_rand($knownPrimes)]);
+            } else {
+                $comp = random_int(4, 1000000);
+                if ($comp % 2 === 1) $comp++;
+                $inputs[] = (string)$comp;
+            }
+        }
+    } elseif ($code === 'REVERSE_ARRAY') {
+        $inputs[] = "5\n1 2 3 4 5";
+        $inputs[] = "1\n999";
+        $inputs[] = "4\n-10 0 0 10";
+        $inputs[] = "5\n7 8 9 8 7";
+        $inputs[] = "8\n15 42 -9 0 108 77 3 21";
+        for ($i = count($inputs); $i < $count; $i++) {
+            $n = random_int(3, 20);
+            $arr = [];
+            for ($k = 0; $k < $n; $k++) {
+                $arr[] = random_int(-1000, 1000);
+            }
+            $inputs[] = $n . "\n" . implode(' ', $arr);
+        }
+    } elseif ($code === 'PALINDROME_STRING') {
+        $inputs[] = "racecar";
+        $inputs[] = "z";
+        $inputs[] = "ab";
+        $inputs[] = "noon";
+        $inputs[] = "123454321";
+        $chars = 'abcdefghijklmnopqrstuvwxyz';
+        for ($i = count($inputs); $i < $count; $i++) {
+            $len = random_int(3, 12);
+            $str = '';
+            for ($k = 0; $k < $len; $k++) {
+                $str .= $chars[random_int(0, strlen($chars) - 1)];
+            }
+            if ($i % 2 === 0) {
+                $str = $str . strrev($str);
+            }
+            $inputs[] = $str;
+        }
+    } else {
+        // Tổng quát
+        for ($i = 0; $i < $count; $i++) {
+            $r1 = random_int(1, 1000);
+            $r2 = random_int(1, 1000);
+            $inputs[] = "$r1 $r2";
+        }
+    }
+
+    return array_slice($inputs, 0, $count);
+}
+
 // ==============================================================
 // XỬ LÝ CÁC THAO TÁC CỦA GIẢNG VIÊN (POST ACTIONS)
 // ==============================================================
@@ -166,7 +267,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // 3. TỰ ĐỘNG SINH BỘ TESTCASES BIÊN & NGẪU NHIÊN (AUTO-GENERATE TESTCASES)
     elseif ($action === 'auto_generate_tests') {
-        $problemId = (int)($_POST['problem_id'] ?? 0);
+        $problemId    = (int)($_POST['problem_id'] ?? 0);
+        $numTests     = max(3, min(100, (int)($_POST['num_tests'] ?? 10)));
+        $solutionLang = trim($_POST['solution_lang'] ?? 'python3');
+        $solutionCode = trim($_POST['solution_code'] ?? '');
+        $customInText = trim($_POST['custom_inputs'] ?? '');
         
         $stmtP = $pdo->prepare("SELECT id, code, title, topic FROM problems WHERE id = ?");
         $stmtP->execute([$problemId]);
@@ -175,124 +280,149 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$problem) {
             $errorMsg = 'Không tìm thấy bài tập được chọn!';
         } else {
-            // Danh sách các ca kiểm thử biên thông minh tự động
-            $generatedTests = [];
             $code = strtoupper(trim($problem['code']));
 
-            if ($code === 'SUM_TWO_NUMBERS') {
-                $generatedTests = [
-                    ['input' => "10 25", 'output' => "35", 'is_sample' => 1, 'weight' => 20],
-                    ['input' => "0 0", 'output' => "0", 'is_sample' => 0, 'weight' => 20],
-                    ['input' => "-450 -550", 'output' => "-1000", 'is_sample' => 0, 'weight' => 20],
-                    ['input' => "1000000 -1000000", 'output' => "0", 'is_sample' => 0, 'weight' => 20],
-                    ['input' => "9876543210 1234567890", 'output' => "11111111100", 'is_sample' => 0, 'weight' => 20]
-                ];
-            } elseif ($code === 'PRIME_CHECK') {
-                $generatedTests = [
-                    ['input' => "7", 'output' => "YES", 'is_sample' => 1, 'weight' => 20],
-                    ['input' => "1", 'output' => "NO", 'is_sample' => 0, 'weight' => 20],
-                    ['input' => "2", 'output' => "YES", 'is_sample' => 0, 'weight' => 20],
-                    ['input' => "999999", 'output' => "NO", 'is_sample' => 0, 'weight' => 20],
-                    ['input' => "1000003", 'output' => "YES", 'is_sample' => 0, 'weight' => 20]
-                ];
-            } elseif ($code === 'REVERSE_ARRAY') {
-                $generatedTests = [
-                    ['input' => "5\n1 2 3 4 5", 'output' => "5 4 3 2 1", 'is_sample' => 1, 'weight' => 20],
-                    ['input' => "1\n999", 'output' => "999", 'is_sample' => 0, 'weight' => 20],
-                    ['input' => "4\n-10 0 0 10", 'output' => "10 0 0 -10", 'is_sample' => 0, 'weight' => 20],
-                    ['input' => "5\n7 8 9 8 7", 'output' => "7 8 9 8 7", 'is_sample' => 0, 'weight' => 20],
-                    ['input' => "8\n15 42 -9 0 108 77 3 21", 'output' => "21 3 77 108 0 -9 42 15", 'is_sample' => 0, 'weight' => 20]
-                ];
-            } elseif ($code === 'PALINDROME_STRING') {
-                $generatedTests = [
-                    ['input' => "racecar", 'output' => "YES", 'is_sample' => 1, 'weight' => 20],
-                    ['input' => "z", 'output' => "YES", 'is_sample' => 0, 'weight' => 20],
-                    ['input' => "ab", 'output' => "NO", 'is_sample' => 0, 'weight' => 20],
-                    ['input' => "noon", 'output' => "YES", 'is_sample' => 0, 'weight' => 20],
-                    ['input' => "123454321", 'output' => "YES", 'is_sample' => 0, 'weight' => 20]
-                ];
-            } elseif ($code === 'SECOND_LARGEST') {
-                $generatedTests = [
-                    ['input' => "5\n10 20 4 45 99", 'output' => "45", 'is_sample' => 1, 'weight' => 20],
-                    ['input' => "2\n100 200", 'output' => "100", 'is_sample' => 0, 'weight' => 20],
-                    ['input' => "5\n99 99 99 50 10", 'output' => "50", 'is_sample' => 0, 'weight' => 20],
-                    ['input' => "4\n-50 -10 -20 -5", 'output' => "-10", 'is_sample' => 0, 'weight' => 20],
-                    ['input' => "6\n12 85 73 99 99 64", 'output' => "85", 'is_sample' => 0, 'weight' => 20]
-                ];
-            } elseif ($code === 'FIBONACCI_N') {
-                $generatedTests = [
-                    ['input' => "5", 'output' => "5", 'is_sample' => 1, 'weight' => 20],
-                    ['input' => "0", 'output' => "0", 'is_sample' => 0, 'weight' => 20],
-                    ['input' => "1", 'output' => "1", 'is_sample' => 0, 'weight' => 20],
-                    ['input' => "15", 'output' => "610", 'is_sample' => 0, 'weight' => 20],
-                    ['input' => "30", 'output' => "832040", 'is_sample' => 0, 'weight' => 20]
-                ];
-            } elseif ($code === 'FACTORIAL_CALC') {
-                $generatedTests = [
-                    ['input' => "4", 'output' => "24", 'is_sample' => 1, 'weight' => 20],
-                    ['input' => "0", 'output' => "1", 'is_sample' => 0, 'weight' => 20],
-                    ['input' => "1", 'output' => "1", 'is_sample' => 0, 'weight' => 20],
-                    ['input' => "7", 'output' => "5040", 'is_sample' => 0, 'weight' => 20],
-                    ['input' => "12", 'output' => "479001600", 'is_sample' => 0, 'weight' => 20]
-                ];
-            } else {
-                $r1 = rand(10, 50);
-                $r2 = rand(100, 500);
-                $generatedTests = [
-                    ['input' => "{$r1}", 'output' => "OK", 'is_sample' => 1, 'weight' => 20],
-                    ['input' => "0", 'output' => "0", 'is_sample' => 0, 'weight' => 20],
-                    ['input' => "-1", 'output' => "-1", 'is_sample' => 0, 'weight' => 20],
-                    ['input' => "{$r2}", 'output' => "OK", 'is_sample' => 0, 'weight' => 20],
-                    ['input' => "1000000", 'output' => "OK", 'is_sample' => 0, 'weight' => 20],
-                ];
+            // 1. Thu thập danh sách dữ liệu đầu vào (Inputs)
+            $inputsList = [];
+            if (!empty($customInText)) {
+                $rawBlocks = preg_split('/(?:\r?\n){2,}|(?:\r?\n)===(?:\r?\n)/', $customInText);
+                foreach ($rawBlocks as $b) {
+                    $b = trim($b);
+                    if (!empty($b)) $inputsList[] = $b;
+                }
             }
 
-            try {
-                $pdo->beginTransaction();
+            if (empty($inputsList)) {
+                $inputsList = generateProblemInputs($code, $numTests);
+            }
 
-                // Lấy thông tin phiên bản gần nhất
-                $stmtCur = $pdo->prepare("SELECT * FROM problem_versions WHERE problem_id = ? ORDER BY version_number DESC LIMIT 1");
-                $stmtCur->execute([$problemId]);
-                $curVer = $stmtCur->fetch();
+            $finalNumTests = count($inputsList);
+            $generatedTests = [];
+            $runError = null;
 
-                $newVerNum = $curVer ? ((int)$curVer['version_number'] + 1) : 1;
-                $desc      = $curVer ? $curVer['description'] : 'Mô tả bài tập';
-                $timeLimit = $curVer ? (int)$curVer['time_limit_ms'] : 1000;
-                $ramLimit  = $curVer ? (int)$curVer['memory_limit_kb'] : 131072;
-                $changeLog = "⚡ Tự động sinh bộ 5 ca kiểm thử biên (Boundary & Stress Tests) v{$newVerNum}.0";
-
-                $stmtNewVer = $pdo->prepare("
-                    INSERT INTO problem_versions (problem_id, version_number, description, time_limit_ms, memory_limit_kb, change_log, created_by, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
-                ");
-                $stmtNewVer->execute([$problemId, $newVerNum, $desc, $timeLimit, $ramLimit, $changeLog, $lecturerId]);
-                $newVerId = (int)$pdo->lastInsertId();
-
-                $stmtInsertTest = $pdo->prepare("
-                    INSERT INTO test_cases (problem_version_id, input_data, expected_output, is_sample, score_weight, order_index)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ");
-
-                $orderIdx = 1;
-                foreach ($generatedTests as $t) {
-                    $stmtInsertTest->execute([
-                        $newVerId,
-                        $t['input'],
-                        $t['output'],
-                        $t['is_sample'],
-                        $t['weight'],
-                        $orderIdx++
-                    ]);
+            // 2. Chạy mã giải mẫu (Reference Solution) để tính toán tự động đáp án chuẩn
+            if (!empty($solutionCode)) {
+                // Chạy thử với test đầu tiên để kiểm tra lỗi cú pháp (CE) hoặc runtime (RE)
+                $firstCheck = ExecutionService::execute($solutionCode, $solutionLang, $inputsList[0], 4000);
+                if ($firstCheck['status'] === VERDICT_CE) {
+                    $runError = "Mã nguồn giải mẫu bị lỗi biên dịch / cú pháp: " . ($firstCheck['stderr'] ?: $firstCheck['message']);
+                } elseif ($firstCheck['status'] === VERDICT_RE) {
+                    $runError = "Mã nguồn giải mẫu bị lỗi khi chạy (Runtime Error): " . ($firstCheck['stderr'] ?: $firstCheck['message']) . " với input: [{$inputsList[0]}]";
+                } elseif ($firstCheck['status'] === VERDICT_TLE) {
+                    $runError = "Mã nguồn giải mẫu chạy quá thời gian (TLE) với input: [{$inputsList[0]}]";
+                } elseif (empty(trim($firstCheck['stdout']))) {
+                    $runError = "Mã nguồn giải mẫu không in ra kết quả gì (stdout rỗng) với input: [{$inputsList[0]}]. Hãy kiểm tra lại lệnh print() hoặc cout << !";
                 }
 
-                // Cập nhật current_version_id
-                $pdo->prepare("UPDATE problems SET current_version_id = ? WHERE id = ?")->execute([$newVerId, $problemId]);
+                if (!$runError) {
+                    $weightEach = round(100 / $finalNumTests, 2);
+                    $sampleCount = max(1, min(2, (int)floor($finalNumTests * 0.2)));
 
-                $pdo->commit();
-                $successMsg = "⚡ Đã tự động sinh thành công 5 ca kiểm thử biên (1 Sample công khai + 4 Hidden kín) cho bài tập [{$problem['code']}] và nâng cấp lên phiên bản v{$newVerNum}.0!";
-            } catch (Exception $e) {
-                if ($pdo->inTransaction()) $pdo->rollBack();
-                $errorMsg = 'Lỗi tự động sinh test case: ' . $e->getMessage();
+                    foreach ($inputsList as $idx => $inp) {
+                        $exec = ExecutionService::execute($solutionCode, $solutionLang, $inp, 4000);
+                        if ($exec['status'] !== VERDICT_AC && $exec['status'] !== 'SUCCESS') {
+                            $runError = "Lỗi khi chạy mã giải mẫu tại test #" . ($idx + 1) . ": " . ($exec['stderr'] ?: $exec['message']);
+                            break;
+                        }
+                        $generatedTests[] = [
+                            'input'     => $inp,
+                            'output'    => trim($exec['stdout']),
+                            'is_sample' => ($idx < $sampleCount) ? 1 : 0,
+                            'weight'    => $weightEach
+                        ];
+                    }
+                }
+            } else {
+                // Dự phòng: Nếu không nhập code mẫu, tự động tính bằng logic bài toán có sẵn
+                $weightEach = round(100 / $finalNumTests, 2);
+                $sampleCount = max(1, min(2, (int)floor($finalNumTests * 0.2)));
+
+                foreach ($inputsList as $idx => $inp) {
+                    $out = '';
+                    if ($code === 'SUM_TWO_NUMBERS') {
+                        $parts = preg_split('/\s+/', trim($inp));
+                        $out = (string)((int)($parts[0] ?? 0) + (int)($parts[1] ?? 0));
+                    } elseif ($code === 'PRIME_CHECK') {
+                        $n = (int)trim($inp);
+                        $isPrime = true;
+                        if ($n < 2) $isPrime = false;
+                        else {
+                            for ($k = 2; $k * $k <= $n; $k++) {
+                                if ($n % $k === 0) { $isPrime = false; break; }
+                            }
+                        }
+                        $out = $isPrime ? 'YES' : 'NO';
+                    } elseif ($code === 'REVERSE_ARRAY') {
+                        $lines = explode("\n", trim($inp));
+                        $arr = preg_split('/\s+/', trim($lines[1] ?? ''));
+                        $out = implode(' ', array_reverse($arr));
+                    } elseif ($code === 'PALINDROME_STRING') {
+                        $s = trim($inp);
+                        $out = ($s === strrev($s)) ? 'YES' : 'NO';
+                    } else {
+                        $out = 'OK';
+                    }
+
+                    $generatedTests[] = [
+                        'input'     => $inp,
+                        'output'    => $out,
+                        'is_sample' => ($idx < $sampleCount) ? 1 : 0,
+                        'weight'    => $weightEach
+                    ];
+                }
+            }
+
+            if ($runError) {
+                $errorMsg = $runError;
+            } else {
+                try {
+                    $pdo->beginTransaction();
+
+                    // Lấy thông tin phiên bản gần nhất
+                    $stmtCur = $pdo->prepare("SELECT * FROM problem_versions WHERE problem_id = ? ORDER BY version_number DESC LIMIT 1");
+                    $stmtCur->execute([$problemId]);
+                    $curVer = $stmtCur->fetch();
+
+                    $newVerNum = $curVer ? ((int)$curVer['version_number'] + 1) : 1;
+                    $desc      = $curVer ? $curVer['description'] : 'Mô tả bài tập';
+                    $timeLimit = $curVer ? (int)$curVer['time_limit_ms'] : 1000;
+                    $ramLimit  = $curVer ? (int)$curVer['memory_limit_kb'] : 131072;
+                    $methodNote = !empty($solutionCode) ? "mã nguồn giải mẫu ({$solutionLang})" : "bộ sinh thuật toán tự động";
+                    $changeLog = "⚡ Tự động sinh {$finalNumTests} ca kiểm thử bằng {$methodNote} v{$newVerNum}.0";
+
+                    $stmtNewVer = $pdo->prepare("
+                        INSERT INTO problem_versions (problem_id, version_number, description, time_limit_ms, memory_limit_kb, change_log, created_by, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+                    ");
+                    $stmtNewVer->execute([$problemId, $newVerNum, $desc, $timeLimit, $ramLimit, $changeLog, $lecturerId]);
+                    $newVerId = (int)$pdo->lastInsertId();
+
+                    $stmtInsertTest = $pdo->prepare("
+                        INSERT INTO test_cases (problem_version_id, input_data, expected_output, is_sample, score_weight, order_index)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ");
+
+                    $orderIdx = 1;
+                    foreach ($generatedTests as $t) {
+                        $stmtInsertTest->execute([
+                            $newVerId,
+                            $t['input'],
+                            $t['output'],
+                            $t['is_sample'],
+                            $t['weight'],
+                            $orderIdx++
+                        ]);
+                    }
+
+                    // Cập nhật current_version_id
+                    $pdo->prepare("UPDATE problems SET current_version_id = ? WHERE id = ?")->execute([$newVerId, $problemId]);
+
+                    $pdo->commit();
+                    $successMsg = "⚡ Đã chạy thành công mã nguồn giải mẫu ({$solutionLang}) qua {$finalNumTests} ca kiểm thử và nâng cấp bài tập [{$problem['code']}] lên phiên bản v{$newVerNum}.0!";
+                } catch (Exception $e) {
+                    if ($pdo->inTransaction()) $pdo->rollBack();
+                    $errorMsg = 'Lỗi lưu ca kiểm thử: ' . $e->getMessage();
+                }
             }
         }
     }
@@ -814,47 +944,106 @@ require_once __DIR__ . '/includes/navbar.php';
 <!-- MODAL 3: TỰ ĐỘNG SINH TESTCASES BIÊN & RANDOM (CHỨC NĂNG NÂNG CAO) -->
 <!-- ============================================================== -->
 <div class="modal fade" id="modalAutoGenerateTests" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
         <div class="modal-content bg-dark text-white border border-secondary shadow-lg">
             <div class="modal-header border-secondary">
                 <h5 class="modal-title fw-bold text-info">
-                    <i class="fas fa-bolt text-warning me-2"></i>Tự Động Sinh Bộ Ca Kiểm Thử Biên (Auto-Gen Testcases)
+                    <i class="fas fa-wand-magic-sparkles text-warning me-2"></i>Tự Động Sinh 5 - 100 Ca Kiểm Thử Từ Mã Nguồn Mẫu (Reference Solution)
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <form method="POST">
+            <form method="POST" id="formAutoGenTests">
                 <input type="hidden" name="action" value="auto_generate_tests">
                 <div class="modal-body p-4">
                     <div class="alert alert-info bg-info bg-opacity-10 border-info border-opacity-25 text-light small mb-3">
-                        <i class="fas fa-circle-info text-info me-2"></i>
-                        Hệ thống tự động phân tích dạng bài toán để sinh <strong>5 ca kiểm thử biên chuẩn</strong> bao gồm:
-                        giá trị cực tiểu (số 0, số âm), số lớn ($10^9$, 64-bit), mảng 1 phần tử / đối xứng, và chuỗi đặc biệt nhằm kiểm tra toàn diện bài nộp của học viên.
+                        <div class="d-flex gap-2">
+                            <i class="fas fa-robot text-info fa-lg mt-1"></i>
+                            <div>
+                                <strong>Cơ chế tự động sinh đáp án chuẩn (Oracle/Reference Solution):</strong>
+                                Giảng viên chỉ cần dán lời giải chuẩn (Python hoặc C++). Hệ thống sẽ tự động sinh các tập Input đa dạng (giá trị cực tiểu, số âm, test biên, số cực lớn $10^9$, mảng lớn...) và điều phối máy chấm thực thi mã mẫu để sinh ra <strong>expected_output chính xác tuyệt đối</strong>, sau đó đóng gói thành phiên bản đề mới.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-5">
+                            <label class="form-label small fw-bold text-secondary">Chọn bài tập cần sinh test <span class="text-danger">*</span>:</label>
+                            <select name="problem_id" id="selectAutoGenProblem" class="form-select bg-black text-white border-secondary" required>
+                                <?php foreach ($allProblems as $p): ?>
+                                    <option value="<?php echo $p['id']; ?>" data-code="<?php echo htmlspecialchars($p['code']); ?>">
+                                        [<?php echo $p['code']; ?>] <?php echo htmlspecialchars($p['title']); ?> (Hiện tại: v<?php echo $p['version_number'] ?? 1; ?>.0 - <?php echo $p['test_count']; ?> tests)
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-bold text-secondary">Số lượng ca kiểm thử cần sinh:</label>
+                            <select name="num_tests" id="selectNumTests" class="form-select bg-black text-white border-secondary">
+                                <option value="5">5 Test cases (Mặc định)</option>
+                                <option value="10" selected>10 Test cases (Khuyên dùng)</option>
+                                <option value="20">20 Test cases (Kiểm thử mở rộng)</option>
+                                <option value="50">50 Test cases (Tải lớn)</option>
+                                <option value="100">100 Test cases (Stress test cực đại)</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold text-secondary">Ngôn ngữ của mã giải mẫu:</label>
+                            <select name="solution_lang" id="selectSolutionLang" class="form-select bg-black text-white border-secondary">
+                                <option value="python3" selected>Python 3 (Nhanh &amp; Tiện lợi)</option>
+                                <option value="cpp">C++ 17 (Tối ưu tốc độ cao)</option>
+                            </select>
+                        </div>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label small fw-bold text-secondary">Chọn bài tập cần sinh bộ test:</label>
-                        <select name="problem_id" id="selectAutoGenProblem" class="form-select bg-black text-white border-secondary" required>
-                            <?php foreach ($allProblems as $p): ?>
-                                <option value="<?php echo $p['id']; ?>">
-                                    [<?php echo $p['code']; ?>] <?php echo htmlspecialchars($p['title']); ?> (Hiện tại: v<?php echo $p['version_number'] ?? 1; ?>.0 - <?php echo $p['test_count']; ?> tests)
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label class="form-label small fw-bold text-secondary mb-0">
+                                Mã nguồn giải mẫu chuẩn (Reference Solution) <span class="text-danger">*</span>:
+                            </label>
+                            <button type="button" class="btn btn-outline-info btn-xs py-0 px-2 small" id="btnFillStarterCode">
+                                <i class="fas fa-code me-1"></i> Tải mã giải gợi ý cho bài này
+                            </button>
+                        </div>
+                        <textarea name="solution_code" id="autogenSolutionCode" class="form-control bg-black text-success font-monospace border-secondary" rows="9" style="font-size: 13.5px; line-height: 1.5;" placeholder="Dán mã nguồn Python 3 hoặc C++ giải đúng bài toán vào đây... Hệ thống sẽ chạy mã này trên máy chấm để tự động lấy expected_output cho từng test case." required></textarea>
                     </div>
 
-                    <div class="p-3 rounded bg-black border border-secondary border-opacity-50 mb-3">
-                        <div class="fw-bold text-warning small mb-2"><i class="fas fa-wand-magic-sparkles me-1"></i> Quy chuẩn sinh ca kiểm thử theo Đề tài 20:</div>
-                        <ul class="text-secondary small mb-0 ps-3">
-                            <li class="mb-1"><strong class="text-light">1 Test mẫu công khai (Sample test)</strong>: Trọng số 20 điểm - hiển thị trong bảng mô tả đề cho người học tham khảo.</li>
-                            <li class="mb-1"><strong class="text-light">4 Test kín bảo mật (Hidden tests)</strong>: Trọng số 80 điểm (20 điểm/test) - giấu input/output để bảo đảm tính khách quan.</li>
-                            <li><strong class="text-light">Tự động nâng phiên bản đề bài</strong>: Tạo bản ghi phiên bản mới (v2.0, v3.0...) kèm nhật ký thay đổi theo đúng Phép thử 4 & Tình huống 2.</li>
-                        </ul>
+                    <div class="accordion mb-3" id="accordionCustomInput">
+                        <div class="accordion-item bg-black border-secondary border-opacity-50">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed bg-transparent text-secondary py-2 small" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCustomInput">
+                                    <i class="fas fa-sliders me-2 text-warning"></i> (Tùy chọn) Tự nhập danh sách bộ Input tùy chỉnh của Giảng viên
+                                </button>
+                            </h2>
+                            <div id="collapseCustomInput" class="accordion-collapse collapse" data-bs-parent="#accordionCustomInput">
+                                <div class="accordion-body p-3">
+                                    <p class="text-secondary small mb-2">
+                                        Nếu bỏ trống trường này, hệ thống sẽ <strong>tự động sinh ngẫu nhiên và bao phủ các trường hợp biên</strong> tương ứng theo số lượng test đã chọn. Nếu bạn muốn tự định nghĩa input, hãy phân tách mỗi test case bằng 2 dấu xuống dòng hoặc dòng <code>===</code>:
+                                    </p>
+                                    <textarea name="custom_inputs" class="form-control bg-dark text-white font-monospace border-secondary small" rows="5" placeholder="Ví dụ Input 1:&#10;10 20&#10;&#10;Ví dụ Input 2:&#10;-100 500&#10;&#10;Ví dụ Input 3:&#10;9999999999 1"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="p-3 rounded bg-black border border-secondary border-opacity-50">
+                        <div class="fw-bold text-warning small mb-2"><i class="fas fa-shield-halved me-1"></i> Quy chuẩn an toàn &amp; phân quyền Đề tài 20:</div>
+                        <div class="row text-secondary small g-2">
+                            <div class="col-md-4">
+                                <i class="fas fa-check text-success me-1"></i> <strong>Tự kiểm tra CE/RE</strong>: Chạy thử trước test 1 để đảm bảo code mẫu không lỗi cú pháp.
+                            </div>
+                            <div class="col-md-4">
+                                <i class="fas fa-eye me-1 text-info"></i> <strong>Test công khai &amp; Test kín</strong>: 1-2 test đầu tiên làm mẫu (is_sample=1), còn lại là test kín (is_sample=0).
+                            </div>
+                            <div class="col-md-4">
+                                <i class="fas fa-code-branch me-1 text-warning"></i> <strong>Tạo phiên bản mới</strong>: Tự động nâng phiên bản đề bài (vX.0) để Giảng viên có thể Chấm lại (Rejudge).
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer border-secondary">
-                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Hủy</button>
-                    <button type="submit" class="btn btn-info btn-sm px-4 fw-semibold text-dark">
-                        <i class="fas fa-bolt me-1"></i> Bắt Đầu Sinh &amp; Nâng Cấp Phiên Bản Mới
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Đóng</button>
+                    <button type="submit" class="btn btn-info btn-sm px-4 fw-bold text-dark" id="btnSubmitAutoGen">
+                        <i class="fas fa-bolt me-1"></i> Thực Thi &amp; Tạo Phiên Bản Test Mới
                     </button>
                 </div>
             </form>
@@ -1002,7 +1191,48 @@ document.querySelectorAll('.btn-trigger-rejudge').forEach(btn => {
             btn.disabled = false;
             btn.innerHTML = originalText;
         });
-    });
+// Tự động gợi ý mã nguồn giải mẫu cho tính năng Auto-Generate Tests
+const starterSolutionTemplates = <?php echo json_encode($starterSolutionTemplates, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
+
+function updateStarterSolution(force = false) {
+    const selProblem = document.getElementById('selectAutoGenProblem');
+    const selLang = document.getElementById('selectSolutionLang');
+    const txtCode = document.getElementById('autogenSolutionCode');
+    if (!selProblem || !selLang || !txtCode) return;
+
+    const opt = selProblem.options[selProblem.selectedIndex];
+    const code = opt ? (opt.dataset.code || '').trim().toUpperCase() : '';
+    const lang = selLang.value;
+
+    if (force || txtCode.value.trim() === '') {
+        if (starterSolutionTemplates[code] && starterSolutionTemplates[code][lang]) {
+            txtCode.value = starterSolutionTemplates[code][lang];
+        } else {
+            if (lang === 'python3') {
+                txtCode.value = "# Dán mã giải Python 3 chuẩn vào đây\nimport sys\n\ndef solve():\n    pass\n\nif __name__ == '__main__':\n    solve()\n";
+            } else {
+                txtCode.value = "// Dán mã giải C++ chuẩn vào đây\n#include <iostream>\nusing namespace std;\n\nint main() {\n    // Code giai bai...\n    return 0;\n}\n";
+            }
+        }
+    }
+}
+
+document.getElementById('selectAutoGenProblem')?.addEventListener('change', () => updateStarterSolution(false));
+document.getElementById('selectSolutionLang')?.addEventListener('change', () => updateStarterSolution(true));
+document.getElementById('btnFillStarterCode')?.addEventListener('click', () => updateStarterSolution(true));
+
+// Tự điền lần đầu khi trang load
+document.addEventListener('DOMContentLoaded', () => {
+    updateStarterSolution(false);
+});
+
+// Hiệu ứng khi nộp form Auto-Gen
+document.getElementById('formAutoGenTests')?.addEventListener('submit', function() {
+    const btn = document.getElementById('btnSubmitAutoGen');
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Đang chạy mã mẫu trên Máy chấm &amp; Sinh Test...';
+    }
 });
 </script>
 
