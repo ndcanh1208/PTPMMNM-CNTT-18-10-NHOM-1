@@ -185,9 +185,9 @@ require_once __DIR__ . '/includes/navbar.php';
 
         <!-- CỘT PHẢI: Trình soạn thảo Monaco & Bảng điều khiển Thực thi -->
         <div class="col-lg-7">
-            <div class="custom-card p-3 d-flex flex-column" style="height: 82vh;">
+            <div class="custom-card p-3 d-flex flex-column" style="height: 82vh; min-height: 580px; overflow: hidden;">
                 <!-- Thanh công cụ của Editor -->
-                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 pb-2 border-bottom border-secondary mb-2">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 pb-2 border-bottom border-secondary mb-2 flex-shrink-0">
                     <div class="d-flex align-items-center gap-2">
                         <label class="text-secondary small fw-bold">Ngôn ngữ:</label>
                         <select id="selectLanguage" class="form-select form-select-sm bg-dark border-secondary text-white" style="width: 150px;">
@@ -214,7 +214,7 @@ require_once __DIR__ . '/includes/navbar.php';
                 </div>
 
                 <!-- Khung Soạn Thảo (Tích hợp CodeMirror 5 cục bộ siêu tốc 2ms + Monaco Editor nạp ngầm) -->
-                <div id="editor-wrapper" style="flex: 1; min-height: 320px; position: relative;" class="border border-secondary rounded overflow-hidden">
+                <div id="editor-wrapper" style="flex: 1 1 52%; min-height: 220px; position: relative;" class="border border-secondary rounded overflow-hidden">
                     <div id="monaco-container" style="width: 100%; height: 100%; display: none;"></div>
                     <textarea id="codeFallback" class="form-control bg-dark text-white font-monospace border-0 p-3" 
                               style="width: 100%; height: 100%; resize: none; font-size: 14px; line-height: 1.6; outline: none;" 
@@ -222,29 +222,29 @@ require_once __DIR__ . '/includes/navbar.php';
                 </div>
 
                 <!-- Khung Console / Tabs phía dưới Editor -->
-                <div class="mt-3 border-top border-secondary border-opacity-25 pt-2" style="height: 270px; display: flex; flex-direction: column;">
-                    <ul class="nav nav-pills custom-console-tabs gap-2 mb-2" id="consoleTabs" role="tablist">
+                <div class="mt-2 border-top border-secondary border-opacity-25 pt-2" style="flex: 0 0 44%; min-height: 250px; display: flex; flex-direction: column; overflow: hidden;">
+                    <ul class="nav nav-pills custom-console-tabs gap-2 mb-2 flex-shrink-0" id="consoleTabs" role="tablist">
                         <li class="nav-item flex-fill">
-                            <button class="nav-link active w-100 text-center" id="tab-input-btn" type="button">
+                            <button class="nav-link console-tab-btn active w-100 text-center" id="tab-input-btn" type="button" onclick="switchConsoleTab('input')">
                                 <i class="fas fa-keyboard me-1 text-info"></i> Dữ Liệu Tự Nhập (Input)
                             </button>
                         </li>
                         <li class="nav-item flex-fill">
-                            <button class="nav-link w-100 text-center" id="tab-output-btn" type="button">
+                            <button class="nav-link console-tab-btn w-100 text-center" id="tab-output-btn" type="button" onclick="switchConsoleTab('output')">
                                 <i class="fas fa-terminal me-1 text-warning"></i> Kết Quả Chạy Thử
                             </button>
                         </li>
                         <li class="nav-item flex-fill">
-                            <button class="nav-link w-100 text-center" id="tab-verdict-btn" type="button">
+                            <button class="nav-link console-tab-btn w-100 text-center" id="tab-verdict-btn" type="button" onclick="switchConsoleTab('verdict')">
                                 <i class="fas fa-award me-1 text-primary"></i> Kết Quả Chấm (Verdict)
                             </button>
                         </li>
                     </ul>
 
-                    <div class="tab-content flex-grow-1 custom-console-box p-3" id="consoleContent">
+                    <div class="custom-console-box p-3 flex-grow-1" id="consoleContent">
                         <!-- Tab 1: Custom Input -->
-                        <div class="tab-pane fade show active h-100 d-flex flex-column" id="tab-input">
-                            <div class="d-flex justify-content-between align-items-center pb-2 mb-2 border-bottom border-secondary border-opacity-25">
+                        <div class="console-pane active" id="pane-input">
+                            <div class="d-flex justify-content-between align-items-center pb-2 mb-2 border-bottom border-secondary border-opacity-25 flex-shrink-0">
                                 <span class="text-secondary small fw-semibold">
                                     <i class="fas fa-arrow-right-to-bracket me-1 text-info"></i>Dữ liệu đầu vào (stdin):
                                 </span>
@@ -262,12 +262,12 @@ require_once __DIR__ . '/includes/navbar.php';
                         </div>
 
                         <!-- Tab 2: Console Run Output -->
-                        <div class="tab-pane fade h-100" id="tab-output">
+                        <div class="console-pane" id="pane-output">
                             <div id="runOutputLoading" class="text-center py-4 text-secondary d-none">
                                 <div class="spinner-border spinner-border-sm text-warning me-2"></div>
-                                Đang thực thi mã nguồn trong môi trường cách ly an toàn...
+                                <span>Đang thực thi mã nguồn trong môi trường cách ly an toàn...</span>
                             </div>
-                            <div id="runOutputResult" class="h-100">
+                            <div id="runOutputResult" class="flex-grow-1 d-flex flex-column" style="min-height: 0;">
                                 <div class="h-100 d-flex flex-column align-items-center justify-content-center text-center py-3">
                                     <div class="rounded-circle p-3 mb-2" style="background: rgba(234, 179, 8, 0.08); color: #facc15;">
                                         <i class="fas fa-terminal fa-2x"></i>
@@ -284,12 +284,12 @@ require_once __DIR__ . '/includes/navbar.php';
                         </div>
 
                         <!-- Tab 3: Official Judging Verdict -->
-                        <div class="tab-pane fade h-100" id="tab-verdict">
+                        <div class="console-pane" id="pane-verdict">
                             <div id="verdictLoading" class="text-center py-4 text-secondary d-none">
                                 <div class="spinner-border spinner-border-sm text-primary me-2"></div>
-                                Đang điều phối hàng đợi &amp; chấm điểm trên bộ dữ liệu kiểm tra...
+                                <span>Đang điều phối hàng đợi &amp; chấm điểm trên bộ dữ liệu kiểm tra...</span>
                             </div>
-                            <div id="verdictResult" class="h-100">
+                            <div id="verdictResult" class="flex-grow-1 d-flex flex-column" style="min-height: 0;">
                                 <div class="h-100 d-flex flex-column align-items-center justify-content-center text-center py-3">
                                     <div class="rounded-circle p-3 mb-2" style="background: rgba(59, 130, 246, 0.08); color: #60a5fa;">
                                         <i class="fas fa-clipboard-check fa-2x"></i>
@@ -317,7 +317,7 @@ require_once __DIR__ . '/includes/navbar.php';
 <style>
 .CodeMirror {
     height: 100% !important;
-    min-height: 320px;
+    min-height: 180px;
     font-family: 'JetBrains Mono', Consolas, monospace !important;
     font-size: 14px !important;
     line-height: 1.6 !important;
@@ -351,6 +351,60 @@ require_once __DIR__ . '/includes/navbar.php';
 .cm-s-dracula .cm-comment { color: #64748b !important; font-style: italic; }
 .cm-s-dracula .cm-operator { color: #cbd5e1 !important; }
 .cm-s-dracula .cm-builtin { color: #38bdf8 !important; }
+
+/* Custom Console Pane & Box */
+.custom-console-box {
+    background: #080c14;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    overflow-y: auto;
+    position: relative;
+    min-height: 0;
+}
+.custom-console-box::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+.custom-console-box::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.2);
+}
+.custom-console-box::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+}
+.custom-console-box::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+.console-pane {
+    display: none !important;
+    height: 100%;
+}
+.console-pane.active {
+    display: flex !important;
+    flex-direction: column;
+}
+
+.terminal-box {
+    background: #050811;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    overflow: hidden;
+}
+.terminal-header {
+    background: rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 6px 12px;
+}
+.terminal-body {
+    padding: 10px 14px;
+    font-family: 'JetBrains Mono', Consolas, monospace;
+    font-size: 13.5px;
+    line-height: 1.6;
+    max-height: 150px;
+    overflow-y: auto;
+    margin: 0;
+}
 </style>
 <script src="assets/codemirror/codemirror.min.js"></script>
 <script src="assets/codemirror/mode/python.min.js"></script>
@@ -576,35 +630,53 @@ function saveDraft() {
     .catch(() => {});
 }
 
-// Hàm chuyển đổi Tab console an toàn 100%
-function switchConsoleTab(tabBtnId, tabPaneId) {
-    document.querySelectorAll('#consoleTabs .nav-link').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('#consoleContent .tab-pane').forEach(el => el.classList.remove('show', 'active'));
+// Hàm chuyển đổi Tab console an toàn, chuẩn xác 100%
+function switchConsoleTab(target) {
+    let key = target;
+    if (typeof target === 'string') {
+        if (target.includes('input')) key = 'input';
+        else if (target.includes('output')) key = 'output';
+        else if (target.includes('verdict')) key = 'verdict';
+    }
 
-    const btn = document.getElementById(tabBtnId);
-    const pane = document.getElementById(tabPaneId);
+    document.querySelectorAll('.console-tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.console-pane').forEach(pane => pane.classList.remove('active'));
+
+    const btn = document.getElementById('tab-' + key + '-btn');
+    const pane = document.getElementById('pane-' + key);
     if (btn) btn.classList.add('active');
-    if (pane) pane.classList.add('show', 'active');
+    if (pane) pane.classList.add('active');
+}
 
-    try {
-        if (window.bootstrap && bootstrap.Tab) {
-            const tab = bootstrap.Tab.getOrCreateInstance(btn);
-            tab.show();
-        }
-    } catch(e) {}
+// Hàm sao chép kết quả stdout vào clipboard
+function copyStdout(btn) {
+    const el = document.getElementById('stdoutContent');
+    if (!el) return;
+    const text = el.innerText || el.textContent;
+    navigator.clipboard.writeText(text).then(() => {
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-check text-success me-1"></i>Đã chép!';
+        setTimeout(() => { btn.innerHTML = originalHtml; }, 1500);
+    }).catch(() => {
+        alert('Đã chọn: ' + text);
+    });
 }
 
 // Gán sự kiện click cho các nút chuyển tab
-document.getElementById('tab-input-btn').addEventListener('click', () => switchConsoleTab('tab-input-btn', 'tab-input'));
-document.getElementById('tab-output-btn').addEventListener('click', () => switchConsoleTab('tab-output-btn', 'tab-output'));
-document.getElementById('tab-verdict-btn').addEventListener('click', () => switchConsoleTab('tab-verdict-btn', 'tab-verdict'));
+const tabInputBtn = document.getElementById('tab-input-btn');
+const tabOutputBtn = document.getElementById('tab-output-btn');
+const tabVerdictBtn = document.getElementById('tab-verdict-btn');
+
+if (tabInputBtn) tabInputBtn.addEventListener('click', () => switchConsoleTab('input'));
+if (tabOutputBtn) tabOutputBtn.addEventListener('click', () => switchConsoleTab('output'));
+if (tabVerdictBtn) tabVerdictBtn.addEventListener('click', () => switchConsoleTab('verdict'));
 
 // Nút Copy test ví dụ vào ô Chạy Thử
 document.querySelectorAll('.btn-copy-sample').forEach(btn => {
     btn.addEventListener('click', () => {
         const inputData = btn.dataset.input;
         document.getElementById('customInput').value = inputData;
-        switchConsoleTab('tab-input-btn', 'tab-input');
+        switchConsoleTab('input');
     });
 });
 
@@ -657,7 +729,7 @@ document.getElementById('btnRunDraft').addEventListener('click', () => {
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Đang chạy...';
 
     // Chuyển ngay sang tab Kết quả chạy thử
-    switchConsoleTab('tab-output-btn', 'tab-output');
+    switchConsoleTab('output');
 
     const loadingEl = document.getElementById('runOutputLoading');
     const resultEl  = document.getElementById('runOutputResult');
@@ -678,34 +750,43 @@ document.getElementById('btnRunDraft').addEventListener('click', () => {
     .then(data => {
         loadingEl.classList.add('d-none');
         if (!data.success) {
-            resultEl.innerHTML = `<div class="text-danger p-2"><i class="fas fa-times-circle me-1"></i>${data.message}</div>`;
+            resultEl.innerHTML = `<div class="alert alert-danger py-2 px-3 m-2"><i class="fas fa-times-circle me-1"></i>${data.message}</div>`;
             return;
         }
 
         let html = '';
         const verdictBadgeMap = {
-            'SUCCESS': '<span class="badge bg-success px-2 py-1"><i class="fas fa-check-circle me-1"></i>Chạy thành công</span>',
-            'COMPILE_ERROR': '<span class="badge text-white px-2 py-1" style="background:#f97316;"><i class="fas fa-code me-1"></i>Lỗi biên dịch / Cú pháp (CE)</span>',
-            'TIME_LIMIT_EXCEEDED': '<span class="badge bg-warning text-dark px-2 py-1"><i class="fas fa-hourglass-end me-1"></i>Quá thời gian / Lặp vô hạn (TLE)</span>',
-            'RUNTIME_ERROR': '<span class="badge text-white px-2 py-1" style="background:#a855f7;"><i class="fas fa-triangle-exclamation me-1"></i>Lỗi khi chạy (RE)</span>',
-            'SYSTEM_ERROR': '<span class="badge bg-secondary text-white px-2 py-1"><i class="fas fa-server me-1"></i>Lỗi hệ thống (SE)</span>'
+            'SUCCESS': '<span class="badge bg-success-subtle text-success border border-success-subtle px-3 py-1 rounded-pill fw-semibold"><i class="fas fa-check-circle me-1"></i>Chạy thành công</span>',
+            'COMPILE_ERROR': '<span class="badge bg-warning-subtle text-warning border border-warning-subtle px-3 py-1 rounded-pill fw-semibold"><i class="fas fa-code me-1"></i>Lỗi biên dịch / Cú pháp (CE)</span>',
+            'TIME_LIMIT_EXCEEDED': '<span class="badge bg-danger-subtle text-danger border border-danger-subtle px-3 py-1 rounded-pill fw-semibold"><i class="fas fa-hourglass-end me-1"></i>Quá thời gian (TLE)</span>',
+            'RUNTIME_ERROR': '<span class="badge text-white px-3 py-1 rounded-pill fw-semibold" style="background:#a855f7;"><i class="fas fa-triangle-exclamation me-1"></i>Lỗi khi chạy (RE)</span>',
+            'SYSTEM_ERROR': '<span class="badge bg-secondary text-white px-3 py-1 rounded-pill fw-semibold"><i class="fas fa-server me-1"></i>Lỗi hệ thống (SE)</span>'
         };
-        const statusBadge = verdictBadgeMap[data.status] || `<span class="badge bg-danger px-2 py-1">${data.status}</span>`;
+        const statusBadge = verdictBadgeMap[data.status] || `<span class="badge bg-danger px-3 py-1 rounded-pill">${data.status}</span>`;
 
-        html += `<div class="d-flex justify-content-between align-items-center mb-2 pb-1 border-bottom border-secondary">
-                    <div>${statusBadge}</div>
-                    <div class="text-secondary small"><i class="fas fa-stopwatch me-1"></i>${data.time_ms}ms</div>
-                 </div>`;
+        // Thanh Header Trạng Thái & Thời Gian
+        html += `
+            <div class="d-flex justify-content-between align-items-center pb-2 mb-2 border-bottom border-secondary border-opacity-25 flex-shrink-0">
+                <div class="d-flex align-items-center gap-2">
+                    ${statusBadge}
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-dark border border-secondary text-info px-2 py-1 small">
+                        <i class="fas fa-stopwatch me-1 text-warning"></i>${data.time_ms} ms
+                    </span>
+                </div>
+            </div>
+        `;
 
         if (data.message && data.status !== 'SUCCESS') {
-            html += `<div class="alert alert-dark border-secondary py-1 px-2 small mb-2 text-warning">
+            html += `<div class="alert alert-dark border-secondary py-2 px-3 small mb-2 text-warning">
                         <i class="fas fa-circle-info me-1"></i>${escapeHtml(data.message)}
                      </div>`;
         }
 
         if (data.diagnostic) {
             html += `
-                <div class="alert alert-dark border-info bg-opacity-10 p-3 rounded mb-3">
+                <div class="alert alert-dark border-info bg-info bg-opacity-10 p-3 rounded mb-2">
                     <div class="d-flex align-items-center gap-2 text-info fw-bold mb-1">
                         <i class="fas fa-lightbulb"></i>
                         <span>${escapeHtml(data.diagnostic.title)}</span>
@@ -726,29 +807,60 @@ document.getElementById('btnRunDraft').addEventListener('click', () => {
             `;
         }
 
+        // Khung hiển thị Đầu ra chuẩn (stdout) phong cách Terminal
         if (data.stdout && data.stdout.trim().length > 0) {
-            html += `<div class="mb-2"><span class="text-secondary small fw-bold">Kết quả stdout:</span>
-                     <pre class="bg-dark p-2 rounded text-light mb-0 font-monospace">${escapeHtml(data.stdout)}</pre></div>`;
+            html += `
+                <div class="terminal-box mb-2">
+                    <div class="terminal-header d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center gap-1">
+                            <span class="rounded-circle d-inline-block" style="width: 8px; height: 8px; background: #ef4444;"></span>
+                            <span class="rounded-circle d-inline-block" style="width: 8px; height: 8px; background: #eab308;"></span>
+                            <span class="rounded-circle d-inline-block" style="width: 8px; height: 8px; background: #22c55e;"></span>
+                            <span class="text-secondary small ms-2 fw-semibold" style="font-size: 0.8rem;">
+                                <i class="fas fa-terminal text-success me-1"></i>Đầu ra chuẩn (stdout):
+                            </span>
+                        </div>
+                        <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" style="font-size: 0.72rem;" onclick="copyStdout(this)">
+                            <i class="fas fa-copy me-1"></i>Sao chép
+                        </button>
+                    </div>
+                    <pre id="stdoutContent" class="terminal-body text-success">${escapeHtml(data.stdout)}</pre>
+                </div>
+            `;
         }
 
+        // Khung hiển thị Lỗi thực thi (stderr)
         if (data.stderr && data.stderr.trim().length > 0) {
-            html += `<div class="mb-2"><span class="text-danger small fw-bold">Thông báo lỗi / stderr:</span>
-                     <pre class="bg-danger bg-opacity-10 border border-danger p-2 rounded text-danger mb-0 font-monospace">${escapeHtml(data.stderr)}</pre></div>`;
+            html += `
+                <div class="terminal-box border-danger border-opacity-50 mb-2">
+                    <div class="terminal-header bg-danger bg-opacity-10 d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center gap-1">
+                            <span class="rounded-circle d-inline-block" style="width: 8px; height: 8px; background: #ef4444;"></span>
+                            <span class="text-danger small ms-1 fw-bold" style="font-size: 0.8rem;">
+                                <i class="fas fa-triangle-exclamation me-1"></i>Thông báo lỗi thực thi (stderr / traceback):
+                            </span>
+                        </div>
+                    </div>
+                    <pre class="terminal-body text-danger bg-danger bg-opacity-10">${escapeHtml(data.stderr)}</pre>
+                </div>
+            `;
         }
 
         if ((!data.stdout || data.stdout.trim().length === 0) && (!data.stderr || data.stderr.trim().length === 0)) {
-            html += `<div class="alert alert-dark border-secondary bg-opacity-25 py-2 px-3 small my-2 text-secondary">
-                        <i class="fas fa-info-circle me-1 text-warning"></i>
-                        <strong>Chương trình không in ra dữ liệu gì (stdout rỗng).</strong>
-                        ${data.message ? `<div class="mt-1 text-warning small">${escapeHtml(data.message)}</div>` : '<div class="mt-1 text-secondary small">Vui lòng kiểm tra lại xem mã nguồn đã có lệnh <code>cout &lt;&lt; ...;</code> (C++) hoặc <code>print(...)</code> (Python) chưa.</div>'}
-                     </div>`;
+            html += `
+                <div class="alert alert-dark border-secondary bg-opacity-25 py-2 px-3 small my-2 text-secondary">
+                    <i class="fas fa-info-circle me-1 text-warning"></i>
+                    <strong>Chương trình chạy hoàn tất nhưng không in ra kết quả gì (stdout rỗng).</strong>
+                    ${data.message ? `<div class="mt-1 text-warning small">${escapeHtml(data.message)}</div>` : '<div class="mt-1 text-secondary small">Vui lòng kiểm tra lại xem mã nguồn đã có lệnh <code>cout &lt;&lt; ...;</code> (C++) hoặc <code>print(...)</code> (Python) chưa.</div>'}
+                </div>
+            `;
         }
 
         resultEl.innerHTML = html;
     })
     .catch(err => {
         loadingEl.classList.add('d-none');
-        resultEl.innerHTML = `<div class="text-danger p-2"><i class="fas fa-triangle-exclamation me-1"></i>Lỗi kết nối máy chủ: ${err.message}</div>`;
+        resultEl.innerHTML = `<div class="alert alert-danger py-2 px-3 m-2"><i class="fas fa-triangle-exclamation me-1"></i>Lỗi kết nối máy chủ: ${err.message}</div>`;
     })
     .finally(() => {
         btn.disabled = false;
@@ -776,7 +888,7 @@ document.getElementById('btnSubmit').addEventListener('click', () => {
     // Sinh khóa chống nộp trùng Idempotency Key (UUID ngẫu nhiên)
     const idempotencyKey = 'submit_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
 
-    switchConsoleTab('tab-verdict-btn', 'tab-verdict');
+    switchConsoleTab('verdict');
 
     const loadingEl = document.getElementById('verdictLoading');
     const resultEl  = document.getElementById('verdictResult');
@@ -798,7 +910,7 @@ document.getElementById('btnSubmit').addEventListener('click', () => {
     .then(data => {
         loadingEl.classList.add('d-none');
         if (!data.success) {
-            resultEl.innerHTML = `<div class="text-danger p-3"><i class="fas fa-exclamation-triangle me-1"></i>${data.message}</div>`;
+            resultEl.innerHTML = `<div class="alert alert-danger py-2 px-3 m-2"><i class="fas fa-exclamation-triangle me-1"></i>${data.message}</div>`;
             return;
         }
 
@@ -806,7 +918,7 @@ document.getElementById('btnSubmit').addEventListener('click', () => {
     })
     .catch(err => {
         loadingEl.classList.add('d-none');
-        resultEl.innerHTML = `<div class="text-danger p-3">Lỗi gửi bài: ${err.message}</div>`;
+        resultEl.innerHTML = `<div class="alert alert-danger py-2 px-3 m-2">Lỗi gửi bài: ${err.message}</div>`;
     })
     .finally(() => {
         btn.disabled = false;
@@ -822,7 +934,7 @@ function loadSubmissionDetails(subId) {
     .then(r => r.json())
     .then(res => {
         if (!res.success) {
-            resultEl.innerHTML = `<div class="text-danger">${res.message}</div>`;
+            resultEl.innerHTML = `<div class="alert alert-danger">${res.message}</div>`;
             return;
         }
 
@@ -830,7 +942,7 @@ function loadSubmissionDetails(subId) {
         const cases = res.cases || [];
 
         const verdictMap = {
-            'ACCEPTED': { label: 'AC (Accepted)', class: 'bg-success', desc: 'Đúng hoàn toàn các test case!' },
+            'ACCEPTED': { label: 'AC (Accepted)', class: 'bg-success', desc: 'Đúng hoàn toàn tất cả các test case!' },
             'WRONG_ANSWER': { label: 'WA (Wrong Answer)', class: 'bg-danger', desc: 'Kết quả đầu ra không khớp với đáp án chuẩn.' },
             'TIME_LIMIT_EXCEEDED': { label: 'TLE (Time Limit Exceeded)', class: 'bg-warning text-dark', desc: 'Quá giới hạn thời gian (thuật toán lặp vô hạn hoặc quá chậm).' },
             'RUNTIME_ERROR': { label: 'RE (Runtime Error)', class: 'bg-purple text-white', desc: 'Chương trình bị văng lỗi khi đang chạy.' },
@@ -841,33 +953,35 @@ function loadSubmissionDetails(subId) {
         const vInfo = verdictMap[sub.verdict] || { label: sub.verdict, class: 'bg-secondary', desc: '' };
 
         let html = `
-            <div class="p-3 border-bottom border-secondary mb-3">
+            <div class="p-2 border-bottom border-secondary border-opacity-25 mb-2 flex-shrink-0">
                 <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
                     <div>
-                        <span class="badge ${vInfo.class} fs-6 px-3 py-2 fw-bold">${vInfo.label}</span>
-                        <span class="ms-2 text-white fw-bold">Điểm số: ${sub.total_score}đ</span>
+                        <span class="badge ${vInfo.class} fs-6 px-3 py-2 fw-bold rounded-pill">${vInfo.label}</span>
+                        <span class="ms-2 text-white fw-bold">Điểm: ${sub.total_score}đ</span>
                     </div>
                     <div class="text-secondary small">
                         Vượt qua: <strong class="text-light">${sub.passed_test_count}/${sub.total_test_count}</strong> tests
-                        &bull; Thời gian chạy max: <strong>${sub.max_time_ms}ms</strong>
+                        &bull; Thời gian max: <strong>${sub.max_time_ms}ms</strong>
                     </div>
                 </div>
-                <div class="text-secondary small mt-2">${vInfo.desc}</div>
+                <div class="text-secondary small mt-1">${vInfo.desc}</div>
             </div>
         `;
 
         if (sub.compile_log) {
             html += `
-                <div class="mb-3">
-                    <span class="text-warning small fw-bold">Nhật ký lỗi biên dịch (Compile Error):</span>
-                    <pre class="bg-dark p-2 rounded text-danger small mt-1">${escapeHtml(sub.compile_log)}</pre>
+                <div class="terminal-box border-warning border-opacity-50 mb-2">
+                    <div class="terminal-header bg-warning bg-opacity-10 text-warning small fw-bold">
+                        <i class="fas fa-triangle-exclamation me-1"></i>Nhật ký lỗi biên dịch (Compile Error):
+                    </div>
+                    <pre class="terminal-body text-danger">${escapeHtml(sub.compile_log)}</pre>
                 </div>
             `;
         }
 
         if (cases.length > 0) {
             html += `<h6 class="text-secondary small fw-bold mb-2">Chi tiết từng test case:</h6>`;
-            html += `<div class="d-flex flex-wrap gap-2 mb-3">`;
+            html += `<div class="d-flex flex-wrap gap-2 mb-2" style="max-height: 120px; overflow-y: auto;">`;
             cases.forEach(c => {
                 const isPassed = c.verdict === 'PASSED';
                 const badgeColor = isPassed ? 'btn-outline-success text-success' : 'btn-outline-danger text-danger';
@@ -884,8 +998,8 @@ function loadSubmissionDetails(subId) {
         }
 
         html += `
-            <div class="text-center mt-3">
-                <a href="submissions.php" class="btn btn-outline-secondary btn-sm">
+            <div class="text-center mt-2 flex-shrink-0">
+                <a href="submissions.php" class="btn btn-outline-secondary btn-sm py-1 px-3">
                     <i class="fas fa-list me-1"></i> Xem lịch sử tất cả bài nộp
                 </a>
             </div>
