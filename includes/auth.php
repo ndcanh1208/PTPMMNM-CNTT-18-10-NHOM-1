@@ -23,11 +23,16 @@ function getCurrentUser(): ?array {
 }
 
 /**
- * Kiểm tra vai trò cụ thể
+ * Kiểm tra vai trò cụ thể (hỗ trợ cả chuỗi đơn hoặc mảng các vai trò)
  */
-function hasRole(string $role): bool {
+function hasRole($role): bool {
     if (!isLoggedIn()) return false;
-    return strtoupper($_SESSION['user']['role']) === strtoupper($role);
+    $userRole = strtoupper($_SESSION['user']['role'] ?? '');
+    if (is_array($role)) {
+        $allowed = array_map('strtoupper', $role);
+        return in_array($userRole, $allowed, true);
+    }
+    return $userRole === strtoupper((string)$role);
 }
 
 function isAdmin(): bool {
