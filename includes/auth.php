@@ -53,11 +53,17 @@ function requireLogin(): void {
 }
 
 /**
- * Bắt buộc có quyền tương ứng
+ * Bắt buộc có quyền tương ứng (Admin luôn có toàn quyền truy cập)
  */
-function requireRole(string $role): void {
+function requireRole($role): void {
     requireLogin();
-    if (!hasRole($role)) {
+    // Quản trị viên (ADMIN) là Superuser, luôn có toàn quyền truy cập mọi trang
+    if (isAdmin()) {
+        return;
+    }
+    $roles = is_array($role) ? $role : [$role];
+    $userRole = strtoupper($_SESSION['user']['role'] ?? '');
+    if (!in_array($userRole, array_map('strtoupper', $roles))) {
         header('Location: index.php?msg=access_denied');
         exit;
     }

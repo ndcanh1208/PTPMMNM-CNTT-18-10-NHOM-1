@@ -15,7 +15,7 @@ require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/core/JudgeCoordinator.php';
 
 // Bắt buộc quyền Giảng viên hoặc Quản trị viên
-requireRole('LECTURER');
+requireRole(['LECTURER', 'ADMIN']);
 
 $pdo = Database::getConnection();
 $currentUser = getCurrentUser();
