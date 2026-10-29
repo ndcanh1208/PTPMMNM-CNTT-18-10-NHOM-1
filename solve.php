@@ -5,6 +5,9 @@ require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/config/db.php';
 require_once __DIR__ . '/includes/auth.php';
 
+// Yêu cầu đăng nhập để làm bài và nộp bài
+requireLogin();
+
 $problemId = (int)($_GET['id'] ?? 1);
 
 $problem = null;
@@ -61,7 +64,7 @@ if (!$problem) {
     die("Không tìm thấy bài tập hoặc cơ sở dữ liệu chưa được nạp. Hãy truy cập <a href='database/install.php'>database/install.php</a>.");
 }
 
-$defaultPythonStarter = "# Viết mã giải bài bằng Python 3 tại đây\nimport sys\n\ndef main():\n    lines = sys.stdin.read().split()\n    if not lines:\n        return\n    # Viết logic thuật toán tại đây...\n    if len(lines) >= 2:\n        print(int(lines[0]) + int(lines[1]))\n    else:\n        print(lines[0])\n\nif __name__ == '__main__':\n    main()\n";
+$defaultPythonStarter = "# Viết mã giải bài bằng Python 3 tại đây\n# Ví dụ nhập dữ liệu đơn giản, quen thuộc:\na, b = map(int, input().split())\nprint(a + b)\n";
 $initialEditorCode = !empty($draftCode) ? $draftCode : $defaultPythonStarter;
 
 require_once __DIR__ . '/includes/header.php';
@@ -178,30 +181,32 @@ require_once __DIR__ . '/includes/navbar.php';
                 </div>
 
                 <!-- Khung Console / Tabs phía dưới Editor -->
-                <div class="mt-3 border-top border-secondary pt-2" style="height: 250px; display: flex; flex-direction: column;">
-                    <ul class="nav nav-pills nav-fill mb-2" id="consoleTabs" role="tablist">
-                        <li class="nav-item">
-                            <button class="nav-link active py-1 small" id="tab-input-btn" type="button">
-                                <i class="fas fa-keyboard me-1"></i> Dữ Liệu Tự Nhập (Input)
+                <div class="mt-3 border-top border-secondary border-opacity-25 pt-2" style="height: 270px; display: flex; flex-direction: column;">
+                    <ul class="nav nav-pills custom-console-tabs gap-2 mb-2" id="consoleTabs" role="tablist">
+                        <li class="nav-item flex-fill">
+                            <button class="nav-link active w-100 text-center" id="tab-input-btn" type="button">
+                                <i class="fas fa-keyboard me-1 text-info"></i> Dữ Liệu Tự Nhập (Input)
                             </button>
                         </li>
-                        <li class="nav-item">
-                            <button class="nav-link py-1 small" id="tab-output-btn" type="button">
-                                <i class="fas fa-terminal me-1"></i> Kết Quả Chạy Thử
+                        <li class="nav-item flex-fill">
+                            <button class="nav-link w-100 text-center" id="tab-output-btn" type="button">
+                                <i class="fas fa-terminal me-1 text-warning"></i> Kết Quả Chạy Thử
                             </button>
                         </li>
-                        <li class="nav-item">
-                            <button class="nav-link py-1 small" id="tab-verdict-btn" type="button">
-                                <i class="fas fa-award me-1"></i> Kết Quả Chấm (Verdict)
+                        <li class="nav-item flex-fill">
+                            <button class="nav-link w-100 text-center" id="tab-verdict-btn" type="button">
+                                <i class="fas fa-award me-1 text-primary"></i> Kết Quả Chấm (Verdict)
                             </button>
                         </li>
                     </ul>
 
-                    <div class="tab-content flex-grow-1 overflow-auto bg-black bg-opacity-40 p-2 rounded border border-secondary" id="consoleContent">
+                    <div class="tab-content flex-grow-1 custom-console-box p-3" id="consoleContent">
                         <!-- Tab 1: Custom Input -->
                         <div class="tab-pane fade show active h-100 d-flex flex-column" id="tab-input">
-                            <div class="d-flex justify-content-between align-items-center pb-1 mb-1 border-bottom border-secondary border-opacity-25">
-                                <span class="text-secondary small fw-semibold">Dữ liệu đầu vào (stdin):</span>
+                            <div class="d-flex justify-content-between align-items-center pb-2 mb-2 border-bottom border-secondary border-opacity-25">
+                                <span class="text-secondary small fw-semibold">
+                                    <i class="fas fa-arrow-right-to-bracket me-1 text-info"></i>Dữ liệu đầu vào (stdin):
+                                </span>
                                 <div class="btn-group btn-group-sm">
                                     <button type="button" class="btn btn-outline-secondary btn-sm py-0 px-2" id="btnSplitLinesInput" title="Tách các số thành mỗi số trên một dòng riêng (3↵5)">
                                         <i class="fas fa-arrows-split-up-and-left me-1"></i>Tách dòng (↵)
@@ -211,29 +216,51 @@ require_once __DIR__ . '/includes/navbar.php';
                                     </button>
                                 </div>
                             </div>
-                            <textarea id="customInput" class="form-control bg-transparent border-0 text-white font-monospace flex-grow-1" 
-                                      style="resize: none; min-height: 120px;" placeholder="Nhập dữ liệu stdin cho chương trình chạy thử tại đây..."></textarea>
+                            <textarea id="customInput" class="form-control bg-transparent border-0 text-white font-monospace flex-grow-1 p-0" 
+                                      style="resize: none; outline: none; box-shadow: none;" placeholder="Nhập dữ liệu stdin cho chương trình chạy thử tại đây..."></textarea>
                         </div>
 
                         <!-- Tab 2: Console Run Output -->
                         <div class="tab-pane fade h-100" id="tab-output">
                             <div id="runOutputLoading" class="text-center py-4 text-secondary d-none">
-                                <div class="spinner-border spinner-border-sm text-primary me-2"></div>
-                                Đang chuyển mã sang dịch vụ thực thi cách ly Piston...
+                                <div class="spinner-border spinner-border-sm text-warning me-2"></div>
+                                Đang thực thi mã nguồn trong môi trường cách ly an toàn...
                             </div>
-                            <div id="runOutputResult" class="font-monospace small">
-                                <span class="text-secondary">Chưa có kết quả chạy thử. Hãy nhấn nút "Chạy Thử" ở trên.</span>
+                            <div id="runOutputResult" class="h-100">
+                                <div class="h-100 d-flex flex-column align-items-center justify-content-center text-center py-3">
+                                    <div class="rounded-circle p-3 mb-2" style="background: rgba(234, 179, 8, 0.08); color: #facc15;">
+                                        <i class="fas fa-terminal fa-2x"></i>
+                                    </div>
+                                    <div class="fw-semibold text-light mb-1">Chưa có kết quả chạy thử</div>
+                                    <p class="text-secondary small mb-2" style="max-width: 420px;">
+                                        Nhập dữ liệu ở tab <em>Input</em> hoặc bấm <em>"Thử test này"</em> ở cột ví dụ, sau đó nhấn nút <strong>Chạy Thử</strong>.
+                                    </p>
+                                    <button type="button" class="btn btn-outline-warning btn-sm px-3" onclick="document.getElementById('btnRunDraft').click()">
+                                        <i class="fas fa-play me-1"></i> Chạy Thử Ngay
+                                    </button>
+                                </div>
                             </div>
                         </div>
 
                         <!-- Tab 3: Official Judging Verdict -->
                         <div class="tab-pane fade h-100" id="tab-verdict">
                             <div id="verdictLoading" class="text-center py-4 text-secondary d-none">
-                                <div class="spinner-border spinner-border-sm text-success me-2"></div>
-                                Đang đưa bài vào hàng đợi &amp; thực hiện điều phối chấm...
+                                <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+                                Đang điều phối hàng đợi &amp; chấm điểm trên bộ dữ liệu kiểm tra...
                             </div>
-                            <div id="verdictResult">
-                                <span class="text-secondary small">Chưa có bài nộp nào. Hãy nhấn "Nộp Bài" để hệ thống chấm toàn bộ test case.</span>
+                            <div id="verdictResult" class="h-100">
+                                <div class="h-100 d-flex flex-column align-items-center justify-content-center text-center py-3">
+                                    <div class="rounded-circle p-3 mb-2" style="background: rgba(59, 130, 246, 0.08); color: #60a5fa;">
+                                        <i class="fas fa-clipboard-check fa-2x"></i>
+                                    </div>
+                                    <div class="fw-semibold text-light mb-1">Chưa có kết quả chấm bài</div>
+                                    <p class="text-secondary small mb-2" style="max-width: 420px;">
+                                        Nhấn nút <strong>Nộp Bài</strong> ở góc phải trên để hệ thống tự động điều phối chấm toàn bộ ca kiểm thử và xếp loại Verdict.
+                                    </p>
+                                    <button type="button" class="btn btn-outline-primary btn-sm px-3" onclick="document.getElementById('btnSubmit').click()">
+                                        <i class="fas fa-paper-plane me-1"></i> Nộp Bài Ngay
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -293,21 +320,10 @@ require_once __DIR__ . '/includes/navbar.php';
 <script>
 // Mẫu mã nguồn mặc định
 const starterCode = {
-    python3: `# Viết mã giải bài bằng Python 3 tại đây
-import sys
-
-def main():
-    lines = sys.stdin.read().split()
-    if not lines:
-        return
-    # Viết logic thuật toán tại đây...
-    if len(lines) >= 2:
-        print(int(lines[0]) + int(lines[1]))
-    else:
-        print(lines[0])
-
-if __name__ == '__main__':
-    main()
+    python3: `# Viết mã giải bài bằng Python 3 tại đây:
+# Cách nhập 2 số trên cùng 1 dòng quen thuộc:
+a, b = map(int, input().split())
+print(a + b)
 `,
     cpp: `// Viết mã giải bài bằng C++ 17 tại đây
 #include <iostream>
@@ -686,18 +702,22 @@ document.getElementById('btnRunDraft').addEventListener('click', () => {
             `;
         }
 
-        if (data.stdout) {
+        if (data.stdout && data.stdout.trim().length > 0) {
             html += `<div class="mb-2"><span class="text-secondary small fw-bold">Kết quả stdout:</span>
-                     <pre class="bg-dark p-2 rounded text-light mb-0">${escapeHtml(data.stdout)}</pre></div>`;
+                     <pre class="bg-dark p-2 rounded text-light mb-0 font-monospace">${escapeHtml(data.stdout)}</pre></div>`;
         }
 
-        if (data.stderr) {
+        if (data.stderr && data.stderr.trim().length > 0) {
             html += `<div class="mb-2"><span class="text-danger small fw-bold">Thông báo lỗi / stderr:</span>
-                     <pre class="bg-danger bg-opacity-10 border border-danger p-2 rounded text-danger mb-0">${escapeHtml(data.stderr)}</pre></div>`;
+                     <pre class="bg-danger bg-opacity-10 border border-danger p-2 rounded text-danger mb-0 font-monospace">${escapeHtml(data.stderr)}</pre></div>`;
         }
 
-        if (!data.stdout && !data.stderr) {
-            html += `<div class="text-secondary italic">Chương trình không in ra gì (stdout rỗng).</div>`;
+        if ((!data.stdout || data.stdout.trim().length === 0) && (!data.stderr || data.stderr.trim().length === 0)) {
+            html += `<div class="alert alert-dark border-secondary bg-opacity-25 py-2 px-3 small my-2 text-secondary">
+                        <i class="fas fa-info-circle me-1 text-warning"></i>
+                        <strong>Chương trình không in ra dữ liệu gì (stdout rỗng).</strong>
+                        ${data.message ? `<div class="mt-1 text-warning small">${escapeHtml(data.message)}</div>` : '<div class="mt-1 text-secondary small">Vui lòng kiểm tra lại xem mã nguồn đã có lệnh <code>cout &lt;&lt; ...;</code> (C++) hoặc <code>print(...)</code> (Python) chưa.</div>'}
+                     </div>`;
         }
 
         resultEl.innerHTML = html;

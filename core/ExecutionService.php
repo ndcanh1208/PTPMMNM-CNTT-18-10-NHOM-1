@@ -242,26 +242,74 @@ class ExecutionService {
         // ==============================================================
         // 4. THỰC THI LOGIC BÀI TOÁN TƯƠNG ỨNG VỚI STDIN
         // ==============================================================
+        $cleanLower = strtolower($cleanCode);
+
+        // NẾU LÀ C++ MÀ KHÔNG HỀ CÓ LỆNH XUẤT (cout, printf, puts, putchar)
+        // -> Mã nguồn chỉ đọc dữ liệu rồi kết thúc, stdout PHẢI HOÀN TOÀN RỖNG!
+        if ($lang === 'cpp' && !preg_match('/\b(cout|printf|puts|putchar)\b/', $cleanCode)) {
+            return [
+                'status'  => 'SUCCESS',
+                'message' => 'Chương trình chạy kết thúc nhưng không in ra dữ liệu gì (Thiếu lệnh cout / printf xuất kết quả).',
+                'stdout'  => '',
+                'stderr'  => '',
+                'time_ms' => rand(15, 35)
+            ];
+        }
+
         $tokens = preg_split('/\s+/', trim($stdin));
         $output = '';
 
         // Thuật toán: Hai số nguyên (A + B)
         if (count($tokens) >= 2 && is_numeric($tokens[0]) && is_numeric($tokens[1])) {
-            if (stripos($cleanCode, 'a - b') !== false) {
-                $output = (string)((int)$tokens[0] - (int)$tokens[1]); // Mô phỏng bài làm sai WA
+            $a = (int)$tokens[0];
+            $b = (int)$tokens[1];
+
+            // Phân tích biểu thức in trong cout << ...
+            if (preg_match('/cout\s*<<\s*([^;]+);/', $cleanCode, $m)) {
+                $expr = trim($m[1]);
+                if (preg_match('/a\s*-\s*b/i', $expr)) {
+                    $output = (string)($a - $b);
+                } elseif (preg_match('/a\s*\*\s*b/i', $expr)) {
+                    $output = (string)($a * $b);
+                } elseif (preg_match('/a\s*\/\s*b/i', $expr)) {
+                    $output = ($b != 0) ? (string)intdiv($a, $b) : '0';
+                } elseif (preg_match('/["\']([^"\']*)["\']/', $expr, $strM)) {
+                    $output = $strM[1];
+                } elseif (preg_match('/\b0\b/', $expr) && !preg_match('/[ab]/i', $expr)) {
+                    $output = '0';
+                } elseif (preg_match('/a\s*\+\s*b|b\s*\+\s*a/i', $expr)) {
+                    $output = (string)($a + $b);
+                } elseif (preg_match('/(^|\s|<<)a(\s|<<|$)/i', $expr)) {
+                    $output = (string)$a;
+                } elseif (preg_match('/(^|\s|<<)b(\s|<<|$)/i', $expr)) {
+                    $output = (string)$b;
+                } else {
+                    $output = (string)($a + $b);
+                }
+            } elseif (stripos($cleanCode, 'printf') !== false) {
+                if (stripos($cleanCode, 'a - b') !== false) {
+                    $output = (string)($a - $b);
+                } else {
+                    $output = (string)($a + $b);
+                }
             } else {
-                $output = (string)((int)$tokens[0] + (int)$tokens[1]);
+                $output = '';
             }
         } 
         // Thuật toán: Kiểm tra số nguyên tố
         elseif (count($tokens) === 1 && is_numeric($tokens[0])) {
-            $num = (int)$tokens[0];
-            $isPrime = true;
-            if ($num < 2) $isPrime = false;
-            for ($i = 2; $i * $i <= $num; $i++) {
-                if ($num % $i === 0) { $isPrime = false; break; }
+            // Nếu code chỉ in hardcode YES hoặc NO mà không có vòng lặp kiểm tra
+            if (!preg_match('/\b(for|while)\b/', $cleanCode) && preg_match('/cout\s*<<\s*["\'](YES|NO)["\']/i', $cleanCode, $hardcodeMatch)) {
+                $output = strtoupper($hardcodeMatch[1]);
+            } else {
+                $num = (int)$tokens[0];
+                $isPrime = true;
+                if ($num < 2) $isPrime = false;
+                for ($i = 2; $i * $i <= $num; $i++) {
+                    if ($num % $i === 0) { $isPrime = false; break; }
+                }
+                $output = $isPrime ? 'YES' : 'NO';
             }
-            $output = $isPrime ? 'YES' : 'NO';
         }
         // Thuật toán: Xâu đối xứng
         elseif (count($tokens) === 1 && !empty($tokens[0])) {

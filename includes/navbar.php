@@ -34,6 +34,24 @@ $loggedUser    = getCurrentUser();
                         <i class="fas fa-clock-rotate-left me-1"></i> Lịch Sử Nộp Bài
                     </a>
                 </li>
+                <?php if (isAdmin()): ?>
+                    <li class="nav-item">
+                        <a class="nav-link text-danger fw-semibold <?php echo ($currentScript === 'admin.php') ? 'active' : ''; ?>" href="admin.php">
+                            <i class="fas fa-server me-1"></i> Quản Trị Hệ Thống
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-warning fw-semibold <?php echo ($currentScript === 'lecturer.php') ? 'active' : ''; ?>" href="lecturer.php">
+                            <i class="fas fa-chalkboard-user me-1"></i> Quản Trị Giảng Viên
+                        </a>
+                    </li>
+                <?php elseif (isLecturer()): ?>
+                    <li class="nav-item">
+                        <a class="nav-link text-warning fw-semibold <?php echo ($currentScript === 'lecturer.php') ? 'active' : ''; ?>" href="lecturer.php">
+                            <i class="fas fa-chalkboard-user me-1"></i> Quản Trị Giảng Viên
+                        </a>
+                    </li>
+                <?php endif; ?>
             </ul>
 
             <div class="d-flex align-items-center gap-2">
@@ -65,6 +83,21 @@ $loggedUser    = getCurrentUser();
                                 <?php endif; ?>
                             </div>
                             <div class="py-1">
+                                <?php if (isAdmin()): ?>
+                                    <a class="user-menu-item text-danger fw-bold" href="admin.php">
+                                        <i class="fas fa-server text-danger"></i>
+                                        <span>Quản trị Hệ thống (Sandbox)</span>
+                                    </a>
+                                    <a class="user-menu-item text-warning fw-bold" href="lecturer.php">
+                                        <i class="fas fa-chalkboard-user text-warning"></i>
+                                        <span>Quản lý Đề & Bộ Test</span>
+                                    </a>
+                                <?php elseif (isLecturer()): ?>
+                                    <a class="user-menu-item text-warning fw-bold" href="lecturer.php">
+                                        <i class="fas fa-chalkboard-user text-warning"></i>
+                                        <span>Không gian Giảng viên</span>
+                                    </a>
+                                <?php endif; ?>
                                 <a class="user-menu-item" href="problems.php">
                                     <i class="fas fa-code text-primary"></i>
                                     <span>Danh sách bài tập</span>

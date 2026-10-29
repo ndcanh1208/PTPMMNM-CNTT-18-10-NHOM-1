@@ -5,6 +5,9 @@ require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/config/db.php';
 require_once __DIR__ . '/includes/auth.php';
 
+// Bắt buộc đăng nhập khi xem danh sách bài tập
+requireLogin();
+
 $problems = [];
 $errorMsg = null;
 

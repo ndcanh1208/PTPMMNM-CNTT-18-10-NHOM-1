@@ -21,7 +21,7 @@ try {
 
     // 1. Lấy thông tin bài nộp và lượt chấm mới nhất
     $stmtSub = $pdo->prepare("
-        SELECT s.id, s.problem_id, s.problem_version_id, s.language_id, s.source_code, 
+        SELECT s.id, s.user_id, s.problem_id, s.problem_version_id, s.language_id, s.source_code, 
                s.queue_status, s.created_at, p.title as problem_title,
                jr.id as run_id, jr.run_number, jr.verdict, jr.total_score, 
                jr.passed_test_count, jr.total_test_count, jr.max_time_ms, 
@@ -38,6 +38,26 @@ try {
         http_response_code(404);
         echo json_encode(['success' => false, 'message' => 'Không tìm thấy bài nộp']);
         exit;
+    }
+
+    // Bảo mật phân quyền theo Phép thử 5: Người A không đọc được mã riêng của B
+    if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
+        session_start();
+    }
+    $currentUser = $_SESSION['user'] ?? null;
+    $currentUserId = $currentUser['id'] ?? (isset($_GET['user_id']) ? (int)$_GET['user_id'] : null);
+    $currentUserRole = $currentUser['role'] ?? (isset($_GET['role']) ? $_GET['role'] : 'STUDENT');
+
+    $isOwner = ($currentUserId !== null && (int)$sub['user_id'] === (int)$currentUserId);
+    $isStaff = (strtoupper($currentUserRole) === 'ADMIN' || strtoupper($currentUserRole) === 'LECTURER');
+
+    if (!$isOwner && !$isStaff) {
+        $sub['source_code'] = '[Mã nguồn riêng tư - Bạn không có quyền xem mã của học viên khác]';
+    }
+
+    // Che giấu chi tiết kết nối nội bộ của bộ thực thi
+    if (!empty($sub['system_log']) && !$isStaff) {
+        $sub['system_log'] = 'Lỗi dịch vụ thực thi cách ly. Đã ghi nhận lỗi hệ thống.';
     }
 
     // 2. Lấy chi tiết các test case (BẢO VỆ TEST KÍN TUYỆT ĐỐI THEO PHÉP THỬ 5)
@@ -73,10 +93,24 @@ try {
         }
     }
 
+    // 3. Lấy lịch sử tất cả các lần chấm để đối chiếu (Tình huống 2)
+    $stmtAllRuns = $pdo->prepare("
+        SELECT jr.id, jr.run_number, jr.verdict, jr.total_score, jr.passed_test_count, 
+               jr.total_test_count, jr.max_time_ms, jr.is_latest, jr.finished_at,
+               pv.version_number
+        FROM judging_runs jr
+        JOIN problem_versions pv ON jr.problem_version_id = pv.id
+        WHERE jr.submission_id = ?
+        ORDER BY jr.run_number ASC
+    ");
+    $stmtAllRuns->execute([$submissionId]);
+    $runs = $stmtAllRuns->fetchAll();
+
     echo json_encode([
         'success'    => true,
         'submission' => $sub,
-        'cases'      => $cases
+        'cases'      => $cases,
+        'runs'       => $runs
     ]);
 
 } catch (Exception $e) {

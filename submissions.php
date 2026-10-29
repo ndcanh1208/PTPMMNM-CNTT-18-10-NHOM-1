@@ -5,14 +5,19 @@ require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/config/db.php';
 require_once __DIR__ . '/includes/auth.php';
 
+// Yêu cầu đăng nhập theo phân quyền để xem lịch sử bài nộp
+requireLogin();
+
 $submissions = [];
 $errorMsg = null;
+$currentUser = getCurrentUser();
+$currentUserId = (int)($currentUser['id'] ?? 0);
 
 try {
     $pdo = Database::getConnection();
 
     $stmt = $pdo->query("
-        SELECT s.id, s.language_id, s.created_at, s.queue_status,
+        SELECT s.id, s.user_id, s.language_id, s.created_at, s.queue_status,
                u.full_name, u.username,
                p.id as problem_id, p.code as problem_code, p.title as problem_title,
                jr.id as run_id, jr.run_number, jr.verdict, jr.total_score, 
@@ -129,10 +134,25 @@ require_once __DIR__ . '/includes/navbar.php';
                                 <td class="text-secondary small">
                                     <?php echo date('H:i d/m/Y', strtotime($sub['created_at'])); ?>
                                 </td>
-                                <td class="pe-4 text-end">
-                                    <button class="btn btn-outline-secondary btn-sm px-2 py-1 btn-view-detail" data-sub-id="<?php echo $sub['id']; ?>">
-                                        <i class="fas fa-eye me-1"></i>Xem mã
-                                    </button>
+                                <td class="pe-4 text-end text-nowrap">
+                                    <?php 
+                                    $canViewCode = ($sub['user_id'] == $currentUserId || isLecturer() || isAdmin());
+                                    if ($canViewCode): 
+                                    ?>
+                                        <button class="btn btn-outline-secondary btn-sm px-2 py-1 btn-view-detail" data-sub-id="<?php echo $sub['id']; ?>">
+                                            <i class="fas fa-eye me-1"></i>Xem mã
+                                        </button>
+                                    <?php else: ?>
+                                        <span class="badge bg-dark border border-secondary text-secondary py-1 px-2" title="Mã nguồn riêng tư của học viên khác">
+                                            <i class="fas fa-lock me-1"></i>Mã riêng tư
+                                        </span>
+                                    <?php endif; ?>
+
+                                    <?php if (isLecturer() || isAdmin()): ?>
+                                        <button class="btn btn-outline-warning btn-sm px-2 py-1 ms-1 btn-rejudge" data-sub-id="<?php echo $sub['id']; ?>" title="Chấm lại trên phiên bản đề/test mới">
+                                            <i class="fas fa-rotate me-1"></i>Chấm lại
+                                        </button>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
@@ -234,10 +254,88 @@ document.querySelectorAll('.btn-view-detail').forEach(btn => {
                 html += `</tbody></table></div>`;
             }
 
+            // Bảng đối chiếu các lần chấm (Tình huống 2: Chấm lại & giữ nguyên lịch sử)
+            if (res.runs && res.runs.length > 1) {
+                html += `<div class="mb-3 p-3 rounded bg-black border border-info">
+                            <label class="text-info small fw-bold mb-2">
+                                <i class="fas fa-code-compare me-1"></i>Lịch sử đối chiếu các lần chấm (${res.runs.length} lượt):
+                            </label>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-dark table-bordered mb-0 small text-center">
+                                    <thead class="text-secondary">
+                                        <tr>
+                                            <th>Lượt</th>
+                                            <th>Phiên Bản Đề</th>
+                                            <th>Kết Luận</th>
+                                            <th>Điểm</th>
+                                            <th>Số Test Đạt</th>
+                                            <th>Thời Gian</th>
+                                            <th>Trạng Thái</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>`;
+                res.runs.forEach(r => {
+                    const isLatestBadge = (parseInt(r.is_latest) === 1) 
+                        ? '<span class="badge bg-success">Chính thức (Mới nhất)</span>' 
+                        : '<span class="badge bg-secondary">Lịch sử cũ</span>';
+                    const vColor = (r.verdict === 'ACCEPTED') ? 'text-success' : 'text-danger';
+                    html += `<tr>
+                                <td class="fw-bold">Run #${r.run_number}</td>
+                                <td>v${r.version_number}.0</td>
+                                <td class="fw-bold ${vColor}">${r.verdict}</td>
+                                <td><span class="text-warning fw-bold">${r.total_score}đ</span></td>
+                                <td>${r.passed_test_count}/${r.total_test_count}</td>
+                                <td>${r.max_time_ms}ms</td>
+                                <td>${isLatestBadge}</td>
+                             </tr>`;
+                });
+                html += `        </tbody>
+                                </table>
+                            </div>
+                         </div>`;
+            }
+
             modalBody.innerHTML = html;
         })
         .catch(err => {
             modalBody.innerHTML = `<div class="text-danger">Lỗi tải chi tiết: ${err.message}</div>`;
+        });
+    });
+});
+
+// Xử lý nút Chấm lại (Rejudge) cho Giảng viên
+document.querySelectorAll('.btn-rejudge').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const subId = btn.dataset.subId;
+        if (!confirm(`Bạn có chắc muốn thực hiện CHẤM LẠI bài nộp #${subId}? Hệ thống sẽ tạo một lượt chấm mới và giữ nguyên lịch sử cũ.`)) {
+            return;
+        }
+
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Đang chấm...';
+
+        fetch('api/rejudge.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ submission_id: subId })
+        })
+        .then(r => r.json())
+        .then(res => {
+            if (res.success) {
+                alert(`Chấm lại thành công bài nộp #${subId}!\nKết quả mới: ${res.result.verdict} (${res.result.total_score}đ)`);
+                location.reload();
+            } else {
+                alert('Lỗi chấm lại: ' + res.message);
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        })
+        .catch(err => {
+            alert('Lỗi kết nối: ' + err.message);
+            btn.disabled = false;
+            btn.innerHTML = originalText;
         });
     });
 });

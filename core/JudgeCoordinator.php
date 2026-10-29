@@ -217,8 +217,15 @@ class JudgeCoordinator {
         ");
         $stmt->execute([$verdict, $score, $passed, $total, $maxTime, $compileLog, $systemLog, $runId]);
 
-        // Đánh dấu hoàn thành trong bảng submissions
-        $queueStatus = ($verdict === VERDICT_SE) ? 'FAILED' : 'COMPLETED';
-        $pdo->prepare("UPDATE submissions SET queue_status = ? WHERE id = ?")->execute([$queueStatus, $submissionId]);
+        // Đánh dấu hoàn thành trong bảng submissions CHỈ KHI lượt chấm này vẫn là lượt mới nhất (is_latest = 1)
+        // Tuyệt đối không để kết quả cũ về muộn ghi đè trạng thái của lần chấm mới hơn
+        $stmtLatestCheck = $pdo->prepare("SELECT is_latest FROM judging_runs WHERE id = ?");
+        $stmtLatestCheck->execute([$runId]);
+        $isStillLatest = (int)$stmtLatestCheck->fetchColumn() === 1;
+
+        if ($isStillLatest) {
+            $queueStatus = ($verdict === VERDICT_SE) ? 'FAILED' : 'COMPLETED';
+            $pdo->prepare("UPDATE submissions SET queue_status = ? WHERE id = ?")->execute([$queueStatus, $submissionId]);
+        }
     }
 }

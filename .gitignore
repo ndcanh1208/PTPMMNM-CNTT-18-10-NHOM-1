@@ -13,6 +13,7 @@ Desktop.ini
 *.log
 tests/check_status.php
 tests/test_curl.php
+temp/
 
 # PHP Composer & vendor (if any in future)
 vendor/

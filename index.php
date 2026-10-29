@@ -10,6 +10,9 @@ require_once __DIR__ . '/config/config.php';
 require_once __DIR__ . '/config/db.php';
 require_once __DIR__ . '/includes/auth.php';
 
+// Bắt buộc đăng nhập khi truy cập hệ thống
+requireLogin();
+
 $dbInstalled = false;
 $stats = [
     'users' => 0,
