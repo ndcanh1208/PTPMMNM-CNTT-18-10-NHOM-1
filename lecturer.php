@@ -618,10 +618,25 @@ require_once __DIR__ . '/includes/navbar.php';
                                         <td><span class="badge bg-dark border border-secondary text-secondary"><?php echo htmlspecialchars($p['topic']); ?></span></td>
                                         <td><span class="badge <?php echo $diffBadge; ?>"><?php echo $p['difficulty']; ?></span></td>
                                         <td><span class="badge bg-primary bg-opacity-20 text-primary border border-primary border-opacity-25">v<?php echo $p['version_number'] ?? 1; ?>.0</span></td>
-                                        <td><span class="text-light fw-bold"><?php echo $p['test_count']; ?></span> tests</td>
+                                        <td>
+                                            <button type="button" class="btn btn-outline-info btn-sm py-0 px-2 fw-semibold btn-view-testcases" 
+                                                    data-problem-id="<?php echo $p['id']; ?>" 
+                                                    data-problem-code="<?php echo htmlspecialchars($p['code']); ?>" 
+                                                    data-problem-title="<?php echo htmlspecialchars($p['title']); ?>"
+                                                    title="Bấm để xem danh sách toàn bộ <?php echo $p['test_count']; ?> ca kiểm thử">
+                                                <i class="fas fa-list-check me-1"></i><span class="fw-bold"><?php echo $p['test_count']; ?></span> tests
+                                            </button>
+                                        </td>
                                         <td><span class="text-secondary"><?php echo $p['sub_count']; ?> bài</span></td>
                                         <td class="pe-4 text-end text-nowrap">
-                                            <button type="button" class="btn btn-warning btn-sm py-1 px-2 btn-edit-prob-lecturer" 
+                                            <button type="button" class="btn btn-info btn-sm py-1 px-2 text-dark fw-bold btn-view-testcases" 
+                                                    data-problem-id="<?php echo $p['id']; ?>" 
+                                                    data-problem-code="<?php echo htmlspecialchars($p['code']); ?>" 
+                                                    data-problem-title="<?php echo htmlspecialchars($p['title']); ?>" 
+                                                    title="Xem toàn bộ ca kiểm thử (công khai & kín)">
+                                                <i class="fas fa-eye me-1"></i>Xem test
+                                            </button>
+                                            <button type="button" class="btn btn-warning btn-sm py-1 px-2 ms-1 btn-edit-prob-lecturer" 
                                                     data-id="<?php echo $p['id']; ?>" 
                                                     data-code="<?php echo htmlspecialchars($p['code']); ?>" 
                                                     data-title="<?php echo htmlspecialchars($p['title']); ?>" 
@@ -634,9 +649,9 @@ require_once __DIR__ . '/includes/navbar.php';
                                                 <i class="fas fa-edit me-1"></i>Sửa đề
                                             </button>
                                             <a href="solve.php?id=<?php echo $p['id']; ?>" class="btn btn-outline-info btn-sm py-1 px-2 ms-1" title="Xem đề và làm thử">
-                                                <i class="fas fa-eye me-1"></i>Làm thử
+                                                <i class="fas fa-play me-1"></i>Làm thử
                                             </a>
-                                            <button type="button" class="btn btn-outline-success btn-sm py-1 px-2 ms-1 btn-quick-autogen" data-problem-id="<?php echo $p['id']; ?>" data-problem-title="<?php echo htmlspecialchars($p['title']); ?>" title="Tự động sinh 5 testcases biên">
+                                            <button type="button" class="btn btn-outline-success btn-sm py-1 px-2 ms-1 btn-quick-autogen" data-problem-id="<?php echo $p['id']; ?>" data-problem-title="<?php echo htmlspecialchars($p['title']); ?>" title="Tự động sinh test cases từ code mẫu">
                                                 <i class="fas fa-bolt me-1"></i>Sinh test
                                             </button>
                                             <button type="button" class="btn btn-outline-secondary btn-sm py-1 px-2 ms-1 btn-quick-newver" data-problem-id="<?php echo $p['id']; ?>" data-problem-title="<?php echo htmlspecialchars($p['title']); ?>" title="Tạo phiên bản mới thủ công">
@@ -1114,6 +1129,91 @@ require_once __DIR__ . '/includes/navbar.php';
     </div>
 </div>
 
+<!-- ============================================================== -->
+<!-- MODAL 5: XEM CHI TIẾT TOÀN BỘ TEST CASES (DÀNH CHO GIẢNG VIÊN) -->
+<!-- ============================================================== -->
+<div class="modal fade" id="modalViewTestCases" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content bg-dark text-white border border-secondary shadow-lg">
+            <div class="modal-header border-secondary py-3">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <span class="badge bg-info bg-opacity-20 text-info border border-info border-opacity-25 px-2 py-1">
+                        <i class="fas fa-database me-1"></i> Ngân Hàng Test Cases
+                    </span>
+                    <h5 class="modal-title fw-bold text-white mb-0" id="vtProblemTitle">
+                        Chi Tiết Ca Kiểm Thử
+                    </h5>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+
+            <!-- Thanh điều khiển: Chọn phiên bản, Thống kê & Bộ lọc -->
+            <div class="bg-black border-bottom border-secondary border-opacity-50 px-4 py-3">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <label class="text-secondary small fw-bold text-nowrap"><i class="fas fa-code-branch me-1 text-warning"></i>Phiên bản:</label>
+                        <select id="vtSelectVersion" class="form-select form-select-sm bg-dark text-info font-monospace border-secondary" style="width: auto; min-width: 140px;">
+                            <option value="">Đang tải...</option>
+                        </select>
+
+                        <div class="d-flex gap-2 align-items-center ms-lg-2 flex-wrap" id="vtStatsBadges">
+                            <span class="badge bg-secondary" id="vtBadgeTotal">0 tests</span>
+                            <span class="badge bg-success bg-opacity-20 text-success border border-success border-opacity-25" id="vtBadgeSample">0 công khai</span>
+                            <span class="badge bg-warning bg-opacity-20 text-warning border border-warning border-opacity-25" id="vtBadgeHidden">0 test kín</span>
+                            <span class="badge bg-info bg-opacity-20 text-info border border-info border-opacity-25" id="vtBadgeScore">100đ</span>
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <!-- Bộ lọc loại test -->
+                        <div class="btn-group btn-group-sm" role="group">
+                            <button type="button" class="btn btn-outline-secondary active btn-filter-test" data-filter="all">Tất cả</button>
+                            <button type="button" class="btn btn-outline-success btn-filter-test" data-filter="sample">Test Mẫu (Public)</button>
+                            <button type="button" class="btn btn-outline-warning btn-filter-test" data-filter="hidden">Test Kín (Hidden)</button>
+                        </div>
+                        <!-- Tìm kiếm text -->
+                        <div class="input-group input-group-sm" style="width: 180px;">
+                            <span class="input-group-text bg-dark border-secondary text-secondary"><i class="fas fa-search"></i></span>
+                            <input type="text" id="vtSearchInput" class="form-control bg-dark text-white border-secondary" placeholder="Tìm test...">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Danh sách các test cases -->
+            <div class="modal-body p-4" id="vtModalBody" style="max-height: calc(85vh - 180px); overflow-y: auto;">
+                <div class="text-center py-5 text-secondary" id="vtLoadingSpinner">
+                    <div class="spinner-border text-info mb-2" role="status"></div>
+                    <div>Đang tải danh sách ca kiểm thử từ cơ sở dữ liệu...</div>
+                </div>
+
+                <div id="vtTestList" class="d-flex flex-column gap-3" style="display: none;"></div>
+
+                <div id="vtEmptyAlert" class="alert alert-warning bg-warning bg-opacity-10 border-warning border-opacity-25 text-warning text-center py-4 my-3" style="display: none;">
+                    <i class="fas fa-folder-open fa-2x mb-2 d-block"></i>
+                    Không tìm thấy ca kiểm thử nào phù hợp với bộ lọc hiện tại.
+                </div>
+            </div>
+
+            <!-- Footer modal -->
+            <div class="modal-footer border-secondary justify-content-between flex-wrap gap-2 py-2">
+                <div class="text-secondary small">
+                    <i class="fas fa-shield-halved text-success me-1"></i> Quyền truy cập: <strong>Giảng viên / Quản trị viên</strong> (Học viên chỉ thấy các test mẫu)
+                </div>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-success btn-sm px-3" id="vtBtnOpenAutoGen">
+                        <i class="fas fa-bolt me-1"></i> Sinh thêm test tự động
+                    </button>
+                    <button type="button" class="btn btn-outline-warning btn-sm px-3" id="vtBtnOpenNewVer">
+                        <i class="fas fa-plus me-1"></i> Thêm test thủ công
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-sm px-3" data-bs-dismiss="modal">Đóng</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 // Nút sửa đề bài từ bảng bài tập
 document.querySelectorAll('.btn-edit-prob-lecturer').forEach(btn => {
@@ -1152,6 +1252,248 @@ document.querySelectorAll('.btn-quick-newver').forEach(btn => {
         const modal = new bootstrap.Modal(document.getElementById('modalCreateVersion'));
         modal.show();
     });
+});
+
+// ==============================================================
+// XỬ LÝ MODAL XEM CHI TIẾT TEST CASES DÀNH CHO GIẢNG VIÊN
+// ==============================================================
+let currentViewingProblemId = 0;
+let currentLoadedData = null;
+let currentFilterType = 'all';
+
+function escapeHtml(text) {
+    if (!text) return '';
+    return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+function copyToClipboard(text, btnElement) {
+    if (!navigator.clipboard) {
+        const t = document.createElement("textarea");
+        t.value = text;
+        document.body.appendChild(t);
+        t.select();
+        document.execCommand('copy');
+        document.body.removeChild(t);
+    } else {
+        navigator.clipboard.writeText(text);
+    }
+    if (btnElement) {
+        const originalHtml = btnElement.innerHTML;
+        btnElement.innerHTML = '<i class="fas fa-check text-success me-1"></i>Đã chép!';
+        setTimeout(() => { btnElement.innerHTML = originalHtml; }, 1500);
+    }
+}
+
+function renderTestCasesList() {
+    const listEl = document.getElementById('vtTestList');
+    const emptyEl = document.getElementById('vtEmptyAlert');
+    if (!currentLoadedData || !currentLoadedData.test_cases) {
+        listEl.style.display = 'none';
+        emptyEl.style.display = 'block';
+        return;
+    }
+
+    const searchKeyword = (document.getElementById('vtSearchInput')?.value || '').toLowerCase().trim();
+    const tests = currentLoadedData.test_cases;
+
+    let filtered = tests.filter(tc => {
+        if (currentFilterType === 'sample' && !tc.is_sample) return false;
+        if (currentFilterType === 'hidden' && tc.is_sample) return false;
+        if (searchKeyword) {
+            const inMatch = (tc.input_data || '').toLowerCase().includes(searchKeyword);
+            const outMatch = (tc.expected_output || '').toLowerCase().includes(searchKeyword);
+            const orderMatch = String(tc.order_index).includes(searchKeyword);
+            if (!inMatch && !outMatch && !orderMatch) return false;
+        }
+        return true;
+    });
+
+    if (filtered.length === 0) {
+        listEl.innerHTML = '';
+        listEl.style.display = 'none';
+        emptyEl.style.display = 'block';
+        return;
+    }
+
+    emptyEl.style.display = 'none';
+    listEl.style.display = 'flex';
+
+    let html = '';
+    filtered.forEach((tc, idx) => {
+        const isSample = Boolean(Number(tc.is_sample));
+        const badgeClass = isSample ? 'bg-success bg-opacity-20 text-success border border-success border-opacity-25' : 'bg-warning bg-opacity-20 text-warning border border-warning border-opacity-25';
+        const badgeLabel = isSample ? '<i class="fas fa-eye me-1"></i>Test Mẫu Công Khai (Sample)' : '<i class="fas fa-lock me-1"></i>Test Kín Bảo Mật (Hidden)';
+        const weight = tc.score_weight || 0;
+
+        html += `
+        <div class="card bg-black border border-secondary border-opacity-50 shadow-sm rounded-3 overflow-hidden">
+            <div class="card-header bg-dark bg-opacity-75 border-secondary border-opacity-25 d-flex justify-content-between align-items-center py-2 px-3 flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-secondary font-monospace fw-bold px-2 py-1">#${tc.order_index}</span>
+                    <span class="badge ${badgeClass} px-2 py-1">${badgeLabel}</span>
+                    <span class="text-secondary small fw-semibold">ID: ${tc.id}</span>
+                </div>
+                <div class="d-flex align-items-center gap-3">
+                    <span class="text-info small fw-bold"><i class="fas fa-star me-1 text-warning"></i>${weight} Điểm</span>
+                </div>
+            </div>
+            <div class="card-body p-3">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label class="form-label small fw-bold text-info mb-0">
+                                <i class="fas fa-arrow-right-to-bracket me-1"></i>Đầu vào (stdin):
+                            </label>
+                            <button type="button" class="btn btn-outline-secondary btn-xs py-0 px-2 small btn-copy-raw" data-content="${escapeHtml(tc.input_data)}">
+                                <i class="fas fa-copy me-1"></i>Sao chép
+                            </button>
+                        </div>
+                        <pre class="bg-dark text-info p-2 rounded border border-secondary border-opacity-25 mb-0 font-monospace small" style="max-height: 140px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;">${escapeHtml(tc.input_data) || '<span class="text-secondary italic">(Đầu vào rỗng)</span>'}</pre>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <label class="form-label small fw-bold text-success mb-0">
+                                <i class="fas fa-arrow-right-from-bracket me-1"></i>Đầu ra mong đợi (expected stdout):
+                            </label>
+                            <button type="button" class="btn btn-outline-secondary btn-xs py-0 px-2 small btn-copy-raw" data-content="${escapeHtml(tc.expected_output)}">
+                                <i class="fas fa-copy me-1"></i>Sao chép
+                            </button>
+                        </div>
+                        <pre class="bg-dark text-success p-2 rounded border border-secondary border-opacity-25 mb-0 font-monospace small" style="max-height: 140px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;">${escapeHtml(tc.expected_output) || '<span class="text-secondary italic">(Đầu ra rỗng)</span>'}</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+        `;
+    });
+
+    listEl.innerHTML = html;
+
+    // Gán sự kiện cho các nút copy
+    listEl.querySelectorAll('.btn-copy-raw').forEach(btn => {
+        btn.addEventListener('click', () => {
+            copyToClipboard(btn.dataset.content, btn);
+        });
+    });
+}
+
+function loadProblemTestCases(problemId, versionId = 0) {
+    currentViewingProblemId = problemId;
+    const spinner = document.getElementById('vtLoadingSpinner');
+    const listEl = document.getElementById('vtTestList');
+    const emptyEl = document.getElementById('vtEmptyAlert');
+
+    spinner.style.display = 'block';
+    listEl.style.display = 'none';
+    emptyEl.style.display = 'none';
+
+    let url = `api/get_test_cases.php?problem_id=${problemId}`;
+    if (versionId > 0) url += `&version_id=${versionId}`;
+
+    fetch(url)
+        .then(r => r.json())
+        .then(res => {
+            spinner.style.display = 'none';
+            if (!res.success) {
+                alert('Không thể tải test cases: ' + res.message);
+                return;
+            }
+
+            currentLoadedData = res;
+
+            // Cập nhật tiêu đề modal
+            const prob = res.problem;
+            document.getElementById('vtProblemTitle').innerHTML = `
+                <span class="text-info font-monospace">[${escapeHtml(prob.code)}]</span> ${escapeHtml(prob.title)}
+            `;
+
+            // Cập nhật dropdown phiên bản
+            const selVer = document.getElementById('vtSelectVersion');
+            let optHtml = '';
+            (res.versions_list || []).forEach(v => {
+                const isSelected = (res.current_version && res.current_version.id == v.id) ? 'selected' : '';
+                optHtml += `<option value="${v.id}" ${isSelected}>v${v.version_number}.0 (${v.test_count} tests)</option>`;
+            });
+            selVer.innerHTML = optHtml;
+
+            // Cập nhật huy hiệu thống kê
+            const stats = res.stats || {};
+            document.getElementById('vtBadgeTotal').textContent = `${stats.total_tests || 0} tests`;
+            document.getElementById('vtBadgeSample').textContent = `${stats.sample_count || 0} công khai`;
+            document.getElementById('vtBadgeHidden').textContent = `${stats.hidden_count || 0} test kín`;
+            document.getElementById('vtBadgeScore').textContent = `${stats.total_weight || 0}đ`;
+
+            renderTestCasesList();
+        })
+        .catch(err => {
+            spinner.style.display = 'none';
+            alert('Lỗi kết nối tải test cases: ' + err.message);
+        });
+}
+
+// Bắt sự kiện click nút xem test
+document.querySelectorAll('.btn-view-testcases').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const pId = btn.dataset.problemId;
+        const modalEl = document.getElementById('modalViewTestCases');
+        const modal = new bootstrap.Modal(modalEl);
+        modal.show();
+        loadProblemTestCases(pId);
+    });
+});
+
+// Thay đổi phiên bản cần xem
+document.getElementById('vtSelectVersion')?.addEventListener('change', function() {
+    loadProblemTestCases(currentViewingProblemId, this.value);
+});
+
+// Lọc loại test (All / Sample / Hidden)
+document.querySelectorAll('.btn-filter-test').forEach(btn => {
+    btn.addEventListener('click', () => {
+        document.querySelectorAll('.btn-filter-test').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentFilterType = btn.dataset.filter;
+        renderTestCasesList();
+    });
+});
+
+// Tìm kiếm từ khóa test
+document.getElementById('vtSearchInput')?.addEventListener('input', () => {
+    renderTestCasesList();
+});
+
+// Nút chuyển nhanh sang Sinh Test từ modal xem test
+document.getElementById('vtBtnOpenAutoGen')?.addEventListener('click', () => {
+    const viewModal = bootstrap.Modal.getInstance(document.getElementById('modalViewTestCases'));
+    if (viewModal) viewModal.hide();
+
+    const sel = document.getElementById('selectAutoGenProblem');
+    if (sel && currentViewingProblemId) sel.value = currentViewingProblemId;
+
+    setTimeout(() => {
+        const autoModal = new bootstrap.Modal(document.getElementById('modalAutoGenerateTests'));
+        autoModal.show();
+        if (typeof updateStarterSolution === 'function') updateStarterSolution(false);
+    }, 400);
+});
+
+// Nút chuyển nhanh sang Thêm Test Thủ Công (bản v+)
+document.getElementById('vtBtnOpenNewVer')?.addEventListener('click', () => {
+    const viewModal = bootstrap.Modal.getInstance(document.getElementById('modalViewTestCases'));
+    if (viewModal) viewModal.hide();
+
+    const sel = document.getElementById('selectVersionProblem');
+    if (sel && currentViewingProblemId) sel.value = currentViewingProblemId;
+
+    setTimeout(() => {
+        const verModal = new bootstrap.Modal(document.getElementById('modalCreateVersion'));
+        verModal.show();
+    }, 400);
 });
 
 // Nút kích hoạt chấm lại

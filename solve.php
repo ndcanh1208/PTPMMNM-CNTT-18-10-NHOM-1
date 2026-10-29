@@ -245,6 +245,9 @@ require_once __DIR__ . '/includes/navbar.php';
                 <button type="button" class="btn btn-warning btn-sm ms-2 px-3 fw-bold shadow-sm" data-bs-toggle="modal" data-bs-target="#modalEditProblem">
                     <i class="fas fa-pen-to-square me-1"></i>Sửa Đề Bài
                 </button>
+                <a href="lecturer.php" class="btn btn-outline-info btn-sm ms-1 px-2 fw-semibold" title="Vào không gian Giảng viên để xem toàn bộ test cases và quản lý đề">
+                    <i class="fas fa-list-check me-1"></i>Xem Ngân Hàng Test
+                </a>
             <?php endif; ?>
         </div>
 
