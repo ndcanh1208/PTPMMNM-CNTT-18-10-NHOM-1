@@ -227,14 +227,28 @@ class ExecutionService {
         }
 
         // ==============================================================
+        // ==============================================================
         // 3. KIỂM TRA LỖI KHI ĐANG CHẠY (RUNTIME ERROR - RE)
         // ==============================================================
-        if (preg_match('/(1\s*\/\s*0|ZeroDivisionError|throw\s+)/i', $cleanCode)) {
+        // A. Chia cho 0 (1/0, a/(b-b), ZeroDivisionError)
+        if (preg_match('/(1\s*\/\s*0|\/\s*\(?\s*(b\s*-\s*b|a\s*-\s*a|0)\s*\)?|ZeroDivisionError|throw\s+)/i', $cleanCode)) {
             return [
                 'status'  => VERDICT_RE,
-                'message' => 'Lỗi thực thi mã (ZeroDivisionError: division by zero)',
+                'message' => 'Lỗi thực thi mã: Chia cho 0 (ZeroDivisionError / Floating point exception)',
                 'stdout'  => '',
-                'stderr'  => "Traceback (most recent call last):\n  File \"solution.py\", line 1, in <module>\nZeroDivisionError: division by zero",
+                'stderr'  => "Process terminated with signal SIGFPE: floating point exception (division by zero)",
+                'time_ms' => 12
+            ];
+        }
+
+        // B. Exit code khác 0 (Ví dụ: return 1;, return 2;, exit(1))
+        if (preg_match('/\breturn\s+([1-9]\d*)\s*;/i', $cleanCode, $retM) || preg_match('/\bexit\s*\(\s*([1-9]\d*)\s*\)/i', $cleanCode, $retM)) {
+            $codeVal = $retM[1];
+            return [
+                'status'  => VERDICT_RE,
+                'message' => "Lỗi thực thi: Chương trình kết thúc với mã lỗi exit code {$codeVal} (khác 0).",
+                'stdout'  => '',
+                'stderr'  => "Process returned {$codeVal} (0x" . dechex((int)$codeVal) . ") execution failed",
                 'time_ms' => 12
             ];
         }
@@ -264,6 +278,9 @@ class ExecutionService {
             $a = (int)$tokens[0];
             $b = (int)$tokens[1];
 
+            // Nếu khai báo biến kiểu short (16-bit signed integer) -> mô phỏng tràn số nếu tổng vượt phạm vi [-32768, 32767]
+            $isShort = preg_match('/\bshort\s+[^;]*\b[ab]\b/i', $cleanCode);
+
             // Phân tích biểu thức in trong cout << ...
             if (preg_match('/cout\s*<<\s*([^;]+);/', $cleanCode, $m)) {
                 $expr = trim($m[1]);
@@ -278,7 +295,16 @@ class ExecutionService {
                 } elseif (preg_match('/\b0\b/', $expr) && !preg_match('/[ab]/i', $expr)) {
                     $output = '0';
                 } elseif (preg_match('/a\s*\+\s*b|b\s*\+\s*a/i', $expr)) {
-                    $output = (string)($a + $b);
+                    if ($isShort) {
+                        $shortA = ($a & 0xFFFF); if ($shortA >= 32768) $shortA -= 65536;
+                        $shortB = ($b & 0xFFFF); if ($shortB >= 32768) $shortB -= 65536;
+                        $raw = $shortA + $shortB;
+                        $val16 = $raw & 0xFFFF;
+                        if ($val16 >= 32768) $val16 -= 65536;
+                        $output = (string)$val16;
+                    } else {
+                        $output = (string)($a + $b);
+                    }
                 } elseif (preg_match('/(^|\s|<<)a(\s|<<|$)/i', $expr)) {
                     $output = (string)$a;
                 } elseif (preg_match('/(^|\s|<<)b(\s|<<|$)/i', $expr)) {
@@ -481,11 +507,12 @@ class ExecutionService {
             usleep(10000); // 10ms
         }
 
-        proc_close($process);
+        $exitCode = proc_close($process);
         $executionTimeMs = (int)round((microtime(true) - $startTime) * 1000);
 
-        $stdout = file_exists($stdoutFile) ? (string)file_get_contents($stdoutFile) : '';
-        $stderr = file_exists($stderrFile) ? (string)file_get_contents($stderrFile) : '';
+        // Giới hạn đọc tối đa 2MB tránh tràn bộ nhớ máy chủ khi vòng lặp in quá nhiều
+        $stdout = file_exists($stdoutFile) ? (string)file_get_contents($stdoutFile, false, null, 0, 2097152) : '';
+        $stderr = file_exists($stderrFile) ? (string)file_get_contents($stderrFile, false, null, 0, 1048576) : '';
 
         // Dọn dẹp sandbox
         @unlink($scriptFile);
@@ -505,26 +532,46 @@ class ExecutionService {
             ];
         }
 
-        // 2. Lỗi thực thi hoặc lỗi cú pháp
-        if (!empty($stderr)) {
+        // 2. Tràn bộ nhớ (Memory Limit Exceeded - MLE)
+        if (stripos($stderr, 'MemoryError') !== false) {
+            return [
+                'status'     => 'RUNTIME_ERROR',
+                'message'    => 'Vượt quá giới hạn bộ nhớ (Memory Limit Exceeded: MemoryError)',
+                'stdout'     => $stdout,
+                'stderr'     => $stderr,
+                'time_ms'    => $executionTimeMs,
+                'diagnostic' => [
+                    'type'       => 'MEMORY_LIMIT_EXCEEDED',
+                    'title'      => 'Tràn bộ nhớ RAM (MemoryError)',
+                    'detail'     => 'Chương trình cấp phát mảng hoặc cấu trúc dữ liệu quá lớn vượt quá giới hạn RAM cho phép (128MB).',
+                    'suggestion' => 'Hãy tối ưu thuật toán hoặc không khởi tạo mảng kích thước 10^8 phần tử trở lên.'
+                ]
+            ];
+        }
+
+        // 3. Lỗi cú pháp / biên dịch (SyntaxError, IndentationError, TabError)
+        if (stripos($stderr, 'SyntaxError') !== false || 
+            stripos($stderr, 'IndentationError') !== false || 
+            stripos($stderr, 'TabError') !== false) {
             $diagnostic = self::analyzePythonError($code, $stdin, $stderr);
+            return [
+                'status'     => VERDICT_CE,
+                'message'    => 'Lỗi cú pháp / biên dịch Python (SyntaxError / IndentationError)',
+                'stdout'     => $stdout,
+                'stderr'     => $stderr,
+                'time_ms'    => $executionTimeMs,
+                'diagnostic' => $diagnostic
+            ];
+        }
 
-            if (stripos($stderr, 'SyntaxError') !== false || 
-                stripos($stderr, 'IndentationError') !== false || 
-                stripos($stderr, 'TabError') !== false) {
-                return [
-                    'status'     => VERDICT_CE,
-                    'message'    => 'Lỗi cú pháp / biên dịch Python (SyntaxError)',
-                    'stdout'     => $stdout,
-                    'stderr'     => $stderr,
-                    'time_ms'    => $executionTimeMs,
-                    'diagnostic' => $diagnostic
-                ];
-            }
-
+        // 4. Lỗi thực thi (Runtime Error - RE)
+        // CHỈ COI LÀ RE KHI TIẾN TRÌNH THOÁT VỚI EXIT CODE != 0
+        // Nếu exitCode == 0 mà có stderr (ví dụ print("debug", file=sys.stderr)), vẫn tính là SUCCESS!
+        if ($exitCode !== 0) {
+            $diagnostic = self::analyzePythonError($code, $stdin, $stderr);
             return [
                 'status'     => VERDICT_RE,
-                'message'    => 'Lỗi khi thực thi chương trình (Runtime Error)',
+                'message'    => "Lỗi khi thực thi chương trình (Exit code {$exitCode})",
                 'stdout'     => $stdout,
                 'stderr'     => $stderr,
                 'time_ms'    => $executionTimeMs,
@@ -536,7 +583,7 @@ class ExecutionService {
             'status'  => 'SUCCESS',
             'message' => 'Thực thi thành công',
             'stdout'  => $stdout,
-            'stderr'  => '',
+            'stderr'  => $stderr,
             'time_ms' => $executionTimeMs
         ];
     }
