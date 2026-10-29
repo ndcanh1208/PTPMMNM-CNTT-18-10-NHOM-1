@@ -945,109 +945,107 @@ require_once __DIR__ . '/includes/navbar.php';
 <!-- ============================================================== -->
 <div class="modal fade" id="modalAutoGenerateTests" tabindex="-1">
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content bg-dark text-white border border-secondary shadow-lg">
+        <form method="POST" id="formAutoGenTests" class="modal-content bg-dark text-white border border-secondary shadow-lg">
+            <input type="hidden" name="action" value="auto_generate_tests">
             <div class="modal-header border-secondary">
                 <h5 class="modal-title fw-bold text-info">
                     <i class="fas fa-wand-magic-sparkles text-warning me-2"></i>Tự Động Sinh 5 - 100 Ca Kiểm Thử Từ Mã Nguồn Mẫu (Reference Solution)
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <form method="POST" id="formAutoGenTests">
-                <input type="hidden" name="action" value="auto_generate_tests">
-                <div class="modal-body p-4">
-                    <div class="alert alert-info bg-info bg-opacity-10 border-info border-opacity-25 text-light small mb-3">
-                        <div class="d-flex gap-2">
-                            <i class="fas fa-robot text-info fa-lg mt-1"></i>
-                            <div>
-                                <strong>Cơ chế tự động sinh đáp án chuẩn (Oracle/Reference Solution):</strong>
-                                Giảng viên chỉ cần dán lời giải chuẩn (Python hoặc C++). Hệ thống sẽ tự động sinh các tập Input đa dạng (giá trị cực tiểu, số âm, test biên, số cực lớn $10^9$, mảng lớn...) và điều phối máy chấm thực thi mã mẫu để sinh ra <strong>expected_output chính xác tuyệt đối</strong>, sau đó đóng gói thành phiên bản đề mới.
+            <div class="modal-body p-4" style="max-height: calc(85vh - 130px); overflow-y: auto;">
+                <div class="alert alert-info bg-info bg-opacity-10 border-info border-opacity-25 text-light small mb-3">
+                    <div class="d-flex gap-2">
+                        <i class="fas fa-robot text-info fa-lg mt-1"></i>
+                        <div>
+                            <strong>Cơ chế tự động sinh đáp án chuẩn (Oracle/Reference Solution):</strong>
+                            Giảng viên chỉ cần dán lời giải chuẩn (Python hoặc C++). Hệ thống sẽ tự động sinh các tập Input đa dạng (giá trị cực tiểu, số âm, test biên, số cực lớn $10^9$, mảng lớn...) và điều phối máy chấm thực thi mã mẫu để sinh ra <strong>expected_output chính xác tuyệt đối</strong>, sau đó đóng gói thành phiên bản đề mới.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-5">
+                        <label class="form-label small fw-bold text-secondary">Chọn bài tập cần sinh test <span class="text-danger">*</span>:</label>
+                        <select name="problem_id" id="selectAutoGenProblem" class="form-select bg-black text-white border-secondary" required>
+                            <?php foreach ($allProblems as $p): ?>
+                                <option value="<?php echo $p['id']; ?>" data-code="<?php echo htmlspecialchars($p['code']); ?>">
+                                    [<?php echo $p['code']; ?>] <?php echo htmlspecialchars($p['title']); ?> (Hiện tại: v<?php echo $p['version_number'] ?? 1; ?>.0 - <?php echo $p['test_count']; ?> tests)
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small fw-bold text-secondary">Số lượng ca kiểm thử cần sinh:</label>
+                        <select name="num_tests" id="selectNumTests" class="form-select bg-black text-white border-secondary">
+                            <option value="5">5 Test cases (Mặc định)</option>
+                            <option value="10" selected>10 Test cases (Khuyên dùng)</option>
+                            <option value="20">20 Test cases (Kiểm thử mở rộng)</option>
+                            <option value="50">50 Test cases (Tải lớn)</option>
+                            <option value="100">100 Test cases (Stress test cực đại)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold text-secondary">Ngôn ngữ của mã giải mẫu:</label>
+                        <select name="solution_lang" id="selectSolutionLang" class="form-select bg-black text-white border-secondary">
+                            <option value="python3" selected>Python 3 (Nhanh &amp; Tiện lợi)</option>
+                            <option value="cpp">C++ 17 (Tối ưu tốc độ cao)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label class="form-label small fw-bold text-secondary mb-0">
+                            Mã nguồn giải mẫu chuẩn (Reference Solution) <span class="text-danger">*</span>:
+                        </label>
+                        <button type="button" class="btn btn-outline-info btn-xs py-0 px-2 small" id="btnFillStarterCode">
+                            <i class="fas fa-code me-1"></i> Tải mã giải gợi ý cho bài này
+                        </button>
+                    </div>
+                    <textarea name="solution_code" id="autogenSolutionCode" class="form-control bg-black text-success font-monospace border-secondary" rows="9" style="font-size: 13.5px; line-height: 1.5;" placeholder="Dán mã nguồn Python 3 hoặc C++ giải đúng bài toán vào đây... Hệ thống sẽ chạy mã này trên máy chấm để tự động lấy expected_output cho từng test case." required></textarea>
+                </div>
+
+                <div class="accordion mb-3" id="accordionCustomInput">
+                    <div class="accordion-item bg-black border-secondary border-opacity-50">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed bg-transparent text-secondary py-2 small" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCustomInput">
+                                <i class="fas fa-sliders me-2 text-warning"></i> (Tùy chọn) Tự nhập danh sách bộ Input tùy chỉnh của Giảng viên
+                            </button>
+                        </h2>
+                        <div id="collapseCustomInput" class="accordion-collapse collapse" data-bs-parent="#accordionCustomInput">
+                            <div class="accordion-body p-3">
+                                <p class="text-secondary small mb-2">
+                                    Nếu bỏ trống trường này, hệ thống sẽ <strong>tự động sinh ngẫu nhiên và bao phủ các trường hợp biên</strong> tương ứng theo số lượng test đã chọn. Nếu bạn muốn tự định nghĩa input, hãy phân tách mỗi test case bằng 2 dấu xuống dòng hoặc dòng <code>===</code>:
+                                </p>
+                                <textarea name="custom_inputs" class="form-control bg-dark text-white font-monospace border-secondary small" rows="5" placeholder="Ví dụ Input 1:&#10;10 20&#10;&#10;Ví dụ Input 2:&#10;-100 500&#10;&#10;Ví dụ Input 3:&#10;9999999999 1"></textarea>
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-5">
-                            <label class="form-label small fw-bold text-secondary">Chọn bài tập cần sinh test <span class="text-danger">*</span>:</label>
-                            <select name="problem_id" id="selectAutoGenProblem" class="form-select bg-black text-white border-secondary" required>
-                                <?php foreach ($allProblems as $p): ?>
-                                    <option value="<?php echo $p['id']; ?>" data-code="<?php echo htmlspecialchars($p['code']); ?>">
-                                        [<?php echo $p['code']; ?>] <?php echo htmlspecialchars($p['title']); ?> (Hiện tại: v<?php echo $p['version_number'] ?? 1; ?>.0 - <?php echo $p['test_count']; ?> tests)
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label small fw-bold text-secondary">Số lượng ca kiểm thử cần sinh:</label>
-                            <select name="num_tests" id="selectNumTests" class="form-select bg-black text-white border-secondary">
-                                <option value="5">5 Test cases (Mặc định)</option>
-                                <option value="10" selected>10 Test cases (Khuyên dùng)</option>
-                                <option value="20">20 Test cases (Kiểm thử mở rộng)</option>
-                                <option value="50">50 Test cases (Tải lớn)</option>
-                                <option value="100">100 Test cases (Stress test cực đại)</option>
-                            </select>
+                <div class="p-3 rounded bg-black border border-secondary border-opacity-50">
+                    <div class="fw-bold text-warning small mb-2"><i class="fas fa-shield-halved me-1"></i> Quy chuẩn an toàn &amp; phân quyền Đề tài 20:</div>
+                    <div class="row text-secondary small g-2">
+                        <div class="col-md-4">
+                            <i class="fas fa-check text-success me-1"></i> <strong>Tự kiểm tra CE/RE</strong>: Chạy thử trước test 1 để đảm bảo code mẫu không lỗi cú pháp.
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label small fw-bold text-secondary">Ngôn ngữ của mã giải mẫu:</label>
-                            <select name="solution_lang" id="selectSolutionLang" class="form-select bg-black text-white border-secondary">
-                                <option value="python3" selected>Python 3 (Nhanh &amp; Tiện lợi)</option>
-                                <option value="cpp">C++ 17 (Tối ưu tốc độ cao)</option>
-                            </select>
+                            <i class="fas fa-eye me-1 text-info"></i> <strong>Test công khai &amp; Test kín</strong>: 1-2 test đầu tiên làm mẫu (is_sample=1), còn lại là test kín (is_sample=0).
                         </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <div class="d-flex justify-content-between align-items-center mb-1">
-                            <label class="form-label small fw-bold text-secondary mb-0">
-                                Mã nguồn giải mẫu chuẩn (Reference Solution) <span class="text-danger">*</span>:
-                            </label>
-                            <button type="button" class="btn btn-outline-info btn-xs py-0 px-2 small" id="btnFillStarterCode">
-                                <i class="fas fa-code me-1"></i> Tải mã giải gợi ý cho bài này
-                            </button>
-                        </div>
-                        <textarea name="solution_code" id="autogenSolutionCode" class="form-control bg-black text-success font-monospace border-secondary" rows="9" style="font-size: 13.5px; line-height: 1.5;" placeholder="Dán mã nguồn Python 3 hoặc C++ giải đúng bài toán vào đây... Hệ thống sẽ chạy mã này trên máy chấm để tự động lấy expected_output cho từng test case." required></textarea>
-                    </div>
-
-                    <div class="accordion mb-3" id="accordionCustomInput">
-                        <div class="accordion-item bg-black border-secondary border-opacity-50">
-                            <h2 class="accordion-header">
-                                <button class="accordion-button collapsed bg-transparent text-secondary py-2 small" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCustomInput">
-                                    <i class="fas fa-sliders me-2 text-warning"></i> (Tùy chọn) Tự nhập danh sách bộ Input tùy chỉnh của Giảng viên
-                                </button>
-                            </h2>
-                            <div id="collapseCustomInput" class="accordion-collapse collapse" data-bs-parent="#accordionCustomInput">
-                                <div class="accordion-body p-3">
-                                    <p class="text-secondary small mb-2">
-                                        Nếu bỏ trống trường này, hệ thống sẽ <strong>tự động sinh ngẫu nhiên và bao phủ các trường hợp biên</strong> tương ứng theo số lượng test đã chọn. Nếu bạn muốn tự định nghĩa input, hãy phân tách mỗi test case bằng 2 dấu xuống dòng hoặc dòng <code>===</code>:
-                                    </p>
-                                    <textarea name="custom_inputs" class="form-control bg-dark text-white font-monospace border-secondary small" rows="5" placeholder="Ví dụ Input 1:&#10;10 20&#10;&#10;Ví dụ Input 2:&#10;-100 500&#10;&#10;Ví dụ Input 3:&#10;9999999999 1"></textarea>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="p-3 rounded bg-black border border-secondary border-opacity-50">
-                        <div class="fw-bold text-warning small mb-2"><i class="fas fa-shield-halved me-1"></i> Quy chuẩn an toàn &amp; phân quyền Đề tài 20:</div>
-                        <div class="row text-secondary small g-2">
-                            <div class="col-md-4">
-                                <i class="fas fa-check text-success me-1"></i> <strong>Tự kiểm tra CE/RE</strong>: Chạy thử trước test 1 để đảm bảo code mẫu không lỗi cú pháp.
-                            </div>
-                            <div class="col-md-4">
-                                <i class="fas fa-eye me-1 text-info"></i> <strong>Test công khai &amp; Test kín</strong>: 1-2 test đầu tiên làm mẫu (is_sample=1), còn lại là test kín (is_sample=0).
-                            </div>
-                            <div class="col-md-4">
-                                <i class="fas fa-code-branch me-1 text-warning"></i> <strong>Tạo phiên bản mới</strong>: Tự động nâng phiên bản đề bài (vX.0) để Giảng viên có thể Chấm lại (Rejudge).
-                            </div>
+                        <div class="col-md-4">
+                            <i class="fas fa-code-branch me-1 text-warning"></i> <strong>Tạo phiên bản mới</strong>: Tự động nâng phiên bản đề bài (vX.0) để Giảng viên có thể Chấm lại (Rejudge).
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer border-secondary">
-                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Đóng</button>
-                    <button type="submit" class="btn btn-info btn-sm px-4 fw-bold text-dark" id="btnSubmitAutoGen">
-                        <i class="fas fa-bolt me-1"></i> Thực Thi &amp; Tạo Phiên Bản Test Mới
-                    </button>
-                </div>
-            </form>
-        </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Đóng</button>
+                <button type="submit" class="btn btn-info btn-sm px-4 fw-bold text-dark" id="btnSubmitAutoGen">
+                    <i class="fas fa-bolt me-1"></i> Thực Thi &amp; Tạo Phiên Bản Test Mới
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -1056,65 +1054,63 @@ require_once __DIR__ . '/includes/navbar.php';
 <!-- ============================================================== -->
 <div class="modal fade" id="modalEditProblemLecturer" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content bg-dark text-white border border-secondary shadow-lg">
+        <form method="POST" class="modal-content bg-dark text-white border border-secondary shadow-lg">
+            <input type="hidden" name="action" value="edit_problem">
+            <input type="hidden" name="problem_id" id="editProblemId">
             <div class="modal-header border-secondary">
                 <h5 class="modal-title fw-bold text-warning">
                     <i class="fas fa-pen-to-square me-2"></i>Chỉnh Sửa Thông Tin &amp; Đề Bài
                 </h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <form method="POST">
-                <input type="hidden" name="action" value="edit_problem">
-                <input type="hidden" name="problem_id" id="editProblemId">
-                <div class="modal-body p-4">
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-4">
-                            <label class="form-label small fw-bold text-secondary">Mã bài:</label>
-                            <input type="text" id="editProblemCode" class="form-control bg-black text-info font-monospace border-secondary" readonly>
-                        </div>
-                        <div class="col-md-8">
-                            <label class="form-label small fw-bold text-secondary">Tiêu đề bài tập <span class="text-danger">*</span>:</label>
-                            <input type="text" name="title" id="editProblemTitle" class="form-control bg-black text-white border-secondary" required>
-                        </div>
+            <div class="modal-body p-4" style="max-height: calc(85vh - 130px); overflow-y: auto;">
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold text-secondary">Mã bài:</label>
+                        <input type="text" id="editProblemCode" class="form-control bg-black text-info font-monospace border-secondary" readonly>
                     </div>
-
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-4">
-                            <label class="form-label small fw-bold text-secondary">Chủ đề:</label>
-                            <input type="text" name="topic" id="editProblemTopic" class="form-control bg-black text-white border-secondary">
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label small fw-bold text-secondary">Độ khó:</label>
-                            <select name="difficulty" id="editProblemDifficulty" class="form-select bg-black text-white border-secondary">
-                                <option value="EASY">Dễ (EASY)</option>
-                                <option value="MEDIUM">Trung bình (MEDIUM)</option>
-                                <option value="HARD">Khó (HARD)</option>
-                            </select>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label small fw-bold text-secondary">Giới hạn thời gian (ms):</label>
-                            <input type="number" name="time_limit_ms" id="editProblemTimeLimit" class="form-control bg-black text-white border-secondary" min="100" max="10000" step="100" required>
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label small fw-bold text-secondary">Giới hạn bộ nhớ (MB):</label>
-                        <input type="number" name="memory_limit_mb" id="editProblemMemoryLimit" class="form-control bg-black text-white border-secondary" min="16" max="1024" step="16" required>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label small fw-bold text-secondary">Nội Dung Đề Bài Chi Tiết <span class="text-danger">*</span>:</label>
-                        <textarea name="description" id="editProblemDescription" class="form-control bg-black text-white font-monospace border-secondary" rows="8" style="font-size: 13.5px; line-height: 1.6;" required></textarea>
+                    <div class="col-md-8">
+                        <label class="form-label small fw-bold text-secondary">Tiêu đề bài tập <span class="text-danger">*</span>:</label>
+                        <input type="text" name="title" id="editProblemTitle" class="form-control bg-black text-white border-secondary" required>
                     </div>
                 </div>
-                <div class="modal-footer border-secondary">
-                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Hủy</button>
-                    <button type="submit" class="btn btn-warning btn-sm px-4 fw-bold">
-                        <i class="fas fa-floppy-disk me-1"></i> Lưu Cập Nhật Đề Bài
-                    </button>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold text-secondary">Chủ đề:</label>
+                        <input type="text" name="topic" id="editProblemTopic" class="form-control bg-black text-white border-secondary">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold text-secondary">Độ khó:</label>
+                        <select name="difficulty" id="editProblemDifficulty" class="form-select bg-black text-white border-secondary">
+                            <option value="EASY">Dễ (EASY)</option>
+                            <option value="MEDIUM">Trung bình (MEDIUM)</option>
+                            <option value="HARD">Khó (HARD)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label small fw-bold text-secondary">Giới hạn thời gian (ms):</label>
+                        <input type="number" name="time_limit_ms" id="editProblemTimeLimit" class="form-control bg-black text-white border-secondary" min="100" max="10000" step="100" required>
+                    </div>
                 </div>
-            </form>
-        </div>
+
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-secondary">Giới hạn bộ nhớ (MB):</label>
+                    <input type="number" name="memory_limit_mb" id="editProblemMemoryLimit" class="form-control bg-black text-white border-secondary" min="16" max="1024" step="16" required>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label small fw-bold text-secondary">Nội Dung Đề Bài Chi Tiết <span class="text-danger">*</span>:</label>
+                    <textarea name="description" id="editProblemDescription" class="form-control bg-black text-white font-monospace border-secondary" rows="8" style="font-size: 13.5px; line-height: 1.6;" required></textarea>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Hủy</button>
+                <button type="submit" class="btn btn-warning btn-sm px-4 fw-bold">
+                    <i class="fas fa-floppy-disk me-1"></i> Lưu Cập Nhật Đề Bài
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -1191,6 +1187,9 @@ document.querySelectorAll('.btn-trigger-rejudge').forEach(btn => {
             btn.disabled = false;
             btn.innerHTML = originalText;
         });
+    });
+});
+
 // Tự động gợi ý mã nguồn giải mẫu cho tính năng Auto-Generate Tests
 const starterSolutionTemplates = <?php echo json_encode($starterSolutionTemplates, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES); ?>;
 
