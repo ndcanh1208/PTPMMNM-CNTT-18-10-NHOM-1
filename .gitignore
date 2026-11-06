@@ -1,0 +1,6 @@
+# ByteFlow Online Judge .gitignore
+temp/runs/*
+!temp/runs/.gitkeep
+*.log
+.DS_Store
+Thumbs.db
