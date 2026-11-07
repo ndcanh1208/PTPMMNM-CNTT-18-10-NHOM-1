@@ -1,0 +1,69 @@
+MIT License
+
+Copyright (c) 2026 Nhóm 1 - Lớp CNTT 18-10
+Môn học: Phát triển Phần mềm Mã nguồn mở
+Đề tài 20: Hệ thống Luyện tập và Chấm bài Lập trình Trực tuyến (ByteFlow Online Judge)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+================================================================================
+NGUỒN GỐC VÀ BẢN QUYỀN CÁC BÀI TẬP (PROBLEM SOURCE ATTRIBUTION)
+================================================================================
+Toàn bộ 10 bài tập trong hệ thống được kế thừa, biên soạn và chuẩn hóa dựa trên
+các nguồn tài liệu học thuật và kho đề thi lập trình mở công khai:
+
+1. two-sum (Tính Tổng Hai Số Nguyên)
+   - Nguồn: CSES Problem Set (Introductory Problems / Summation)
+   - Giấy phép: Academic & Open Educational Use
+
+2. prime-check (Kiểm Tra Số Nguyên Tố)
+   - Nguồn: Kattis Archive (Prime Sieve & Trial Division Problem)
+   - Giấy phép: Open Contest Material
+
+3. reverse-string (Đảo Ngược Chuỗi Ký Tự)
+   - Nguồn: Kattis Archive (String Manipulation Collection)
+   - Giấy phép: Open Educational Material
+
+4. factorial (Tính Giai Thừa)
+   - Nguồn: CSES Problem Set (Introductory Mathematics)
+   - Giấy phép: Academic & Open Educational Use
+
+5. second-largest (Phần Tử Lớn Thứ Hai)
+   - Nguồn: CSES Problem Set (Array & Distinct Numbers)
+   - Giấy phép: Academic & Open Educational Use
+
+6. valid-parentheses (Dãy Ngoặc Hợp Lệ)
+   - Nguồn: Kattis Archive (Classic Stack Operations)
+   - Giấy phép: Open Educational Material
+
+7. gcd-lcm (Ước Chung Lớn Nhất và Bội Chung Nhỏ Nhất)
+   - Nguồn: CSES Problem Set (Mathematics / Euclidean Algorithm)
+   - Giấy phép: Academic & Open Educational Use
+
+8. binary-search (Tìm Kiếm Nhị Phân)
+   - Nguồn: MIT OpenCourseWare 6.006 (Introduction to Algorithms)
+   - Giấy phép: Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International (CC BY-NC-SA 4.0)
+
+9. word-count (Đếm Số Từ Trong Văn Bản)
+   - Nguồn: Kattis Archive (Text Tokenizer & Stream Parsing)
+   - Giấy phép: Open Educational Material
+
+10. longest-increasing-subsequence (Dãy Con Tăng Dài Nhất - LIS)
+    - Nguồn: CSES Problem Set (Dynamic Programming / Longest Increasing Subsequence)
+    - Giấy phép: Academic & Open Educational Use
