@@ -115,6 +115,15 @@ require_once __DIR__ . '/includes/header.php';
 require_once __DIR__ . '/includes/sidebar.php';
 ?>
 
+<!-- CodeMirror 5 (Syntax Highlighting, Auto Close & Match Brackets, Auto Indent) -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+
 <div class="pl-64 w-full h-screen flex flex-col overflow-hidden">
   
   <!-- Không gian làm bài chia đôi 2 cột -->
@@ -332,11 +341,9 @@ require_once __DIR__ . '/includes/sidebar.php';
         </div>
       </div>
 
-      <!-- Vùng soạn thảo mã nguồn (Code Editor) -->
-      <div class="flex-1 relative overflow-hidden flex flex-col">
-        <textarea id="code-editor" spellcheck="false" 
-          class="w-full h-full bg-[#070A0F] text-slate-100 font-mono text-sm p-4 resize-none outline-none leading-relaxed border-none focus:ring-0"
-          placeholder="Viết mã giải bài tập tại đây..."><?= Security::escape($initialCode) ?></textarea>
+      <!-- Vùng soạn thảo mã nguồn (Code Editor với Syntax Highlighting & CodeMirror) -->
+      <div class="flex-1 relative overflow-hidden flex flex-col bg-[#070A0F]">
+        <textarea id="code-editor" spellcheck="false"><?= Security::escape($initialCode) ?></textarea>
       </div>
 
       <!-- ==================== CỘT DƯỚI: TABBED CONSOLE (40% chiều cao) ==================== -->
@@ -436,17 +443,83 @@ require_once __DIR__ . '/includes/sidebar.php';
   let currentSubmissionId = null;
   let pollingInterval = null;
 
-  // Hỗ trợ phím Tab trong textarea
-  const editor = document.getElementById('code-editor');
-  editor.addEventListener('keydown', function(e) {
-    if (e.key === 'Tab') {
-      e.preventDefault();
-      const start = this.selectionStart;
-      const end = this.selectionEnd;
-      this.value = this.value.substring(0, start) + "    " + this.value.substring(end);
-      this.selectionStart = this.selectionEnd = start + 4;
+  // Khởi tạo CodeMirror Trình soạn thảo chuyên nghiệp (Syntax Highlighting, Auto Close/Match Brackets, Auto Indent)
+  const codeTextarea = document.getElementById('code-editor');
+  const initialLang = document.getElementById('code-language').value;
+
+  const cmEditor = CodeMirror.fromTextArea(codeTextarea, {
+    mode: initialLang === 'cpp' ? 'text/x-c++src' : 'python',
+    theme: 'dracula',
+    lineNumbers: true,
+    matchBrackets: true,       // Bắt lỗi và đối chiếu cặp ngoặc
+    autoCloseBrackets: true,   // Tự động đóng ngoặc (), [], {}, '', ""
+    indentUnit: 4,
+    tabSize: 4,
+    indentWithTabs: false,
+    smartIndent: true,         // Thụt lề ngay lập tức sau dấu : hoặc {
+    lineWrapping: false,
+    extraKeys: {
+      "Tab": function(cm) {
+        if (cm.somethingSelected()) {
+          cm.indentSelection("add");
+        } else {
+          cm.replaceSelection("    ", "end");
+        }
+      },
+      "Shift-Tab": function(cm) {
+        cm.indentSelection("subtract");
+      },
+      "Ctrl-Enter": function() {
+        submitSolution();
+      }
     }
   });
+
+  // Tự động căn chỉnh kích thước khi nạp trang
+  setTimeout(() => cmEditor.refresh(), 100);
+
+  // Quản lý báo đỏ dòng lỗi
+  let currentErrorLineHandle = null;
+
+  function clearErrorHighlight() {
+    if (currentErrorLineHandle !== null) {
+      cmEditor.removeLineClass(currentErrorLineHandle, 'background', 'cm-error-line');
+      currentErrorLineHandle = null;
+    }
+  }
+
+  // Tự động xóa vệt đỏ khi người dùng gõ sửa code
+  cmEditor.on('change', function() {
+    clearErrorHighlight();
+  });
+
+  // Hàm trích xuất và báo đỏ dòng lỗi từ log kết quả thực thi
+  function highlightErrorFromLog(logText) {
+    if (!logText) return;
+    clearErrorHighlight();
+
+    let errorLine = null;
+
+    // Pattern 1 (Python): File "<stdin>", line 3 hoặc line 12
+    const pyMatch = logText.match(/line (\d+)/i);
+    if (pyMatch && pyMatch[1]) {
+      errorLine = parseInt(pyMatch[1], 10);
+    }
+
+    // Pattern 2 (C++ G++): solution.cpp:14:5: error: hoặc :(\d+):(\d+): error
+    const cppMatch = logText.match(/:(\d+):(?:\d+:)?\s*(?:fatal )?error/i);
+    if (cppMatch && cppMatch[1]) {
+      errorLine = parseInt(cppMatch[1], 10);
+    }
+
+    if (errorLine !== null && errorLine > 0 && errorLine <= cmEditor.lineCount()) {
+      const lineIdx = errorLine - 1;
+      currentErrorLineHandle = cmEditor.addLineClass(lineIdx, 'background', 'cm-error-line');
+      cmEditor.scrollIntoView({ line: lineIdx, ch: 0 }, 100);
+      cmEditor.setCursor({ line: lineIdx, ch: 0 });
+      showToast(`Phát hiện lỗi tại dòng ${errorLine}!`, 'error');
+    }
+  }
 
   // Tự động sinh Idempotency Key duy nhất cho mỗi lượt bấm nộp mới
   function generateIdempotencyKey() {
@@ -498,7 +571,10 @@ require_once __DIR__ . '/includes/sidebar.php';
   // Thay đổi ngôn ngữ
   function changeLanguage(lang) {
     if (confirm("Chuyển ngôn ngữ sẽ nạp mã mẫu mặc định nếu bạn chưa lưu nháp. Bạn có muốn tiếp tục?")) {
-      editor.value = STARTER_TEMPLATES[lang] || '';
+      const template = STARTER_TEMPLATES[lang] || '';
+      cmEditor.setValue(template);
+      cmEditor.setOption('mode', lang === 'cpp' ? 'text/x-c++src' : 'python');
+      clearErrorHighlight();
       showToast(`Đã chuyển sang ${lang.toUpperCase()}`, 'info');
     }
   }
@@ -512,7 +588,7 @@ require_once __DIR__ . '/includes/sidebar.php';
 
   // 1. LƯU BẢN NHÁP
   async function saveDraft() {
-    const code = editor.value;
+    const code = cmEditor.getValue();
     const lang = document.getElementById('code-language').value;
 
     const res = await fetch('/BaiTapLon/api/run_test.php', {
@@ -538,7 +614,7 @@ require_once __DIR__ . '/includes/sidebar.php';
 
   // 2. CHẠY THỬ VỚI CUSTOM INPUT
   async function runCustomTest() {
-    const code = editor.value;
+    const code = cmEditor.getValue();
     const lang = document.getElementById('code-language').value;
     const input = document.getElementById('custom-input').value;
     const outBox = document.getElementById('custom-output');
@@ -582,7 +658,14 @@ require_once __DIR__ . '/includes/sidebar.php';
       }
       if (exec.stderr) {
         outputHtml += `<span class="text-rose-400 font-bold">[stderr / Lỗi]:</span>\n${escapeHtml(exec.stderr)}`;
+        // BÁO ĐỎ DÒNG LỖI TRÊN PHẦN LÀM BÀI
+        highlightErrorFromLog(exec.stderr);
+      } else if (exec.verdict !== 'AC') {
+        highlightErrorFromLog(exec.stdout || '');
+      } else {
+        clearErrorHighlight();
       }
+
       if (!exec.stdout && !exec.stderr) {
         outputHtml = '<span class="text-slate-500">(Chương trình kết thúc thành công nhưng không in gì ra màn hình)</span>';
       }
@@ -598,7 +681,7 @@ require_once __DIR__ . '/includes/sidebar.php';
 
   // 3. NỘP BÀI CHÍNH THỨC (IDEMPOTENCY & CHẤM THỜI GIAN THỰC)
   async function submitSolution() {
-    const code = editor.value;
+    const code = cmEditor.getValue();
     const lang = document.getElementById('code-language').value;
 
     if (!code.trim()) {
@@ -658,6 +741,60 @@ require_once __DIR__ . '/includes/sidebar.php';
     const progress = document.getElementById('verdict-progress');
     const metrics = document.getElementById('verdict-metrics');
     const grid = document.getElementById('testcases-grid');
+
+    banner.className = 'px-2.5 py-1 rounded text-xs font-black font-mono badge-pending';
+    banner.innerText = 'CHỜ CHẤM...';
+    progress.innerText = `Bài nộp #${subId} đang nằm trong hàng đợi worker...`;
+    metrics.innerText = 'Trạng thái: Queued';
+    grid.innerHTML = '';
+
+    const checkStatus = async () => {
+      try {
+        const res = await fetch(`/BaiTapLon/api/submission_status.php?id=${subId}`);
+        if (!res.ok) return;
+
+        const data = await res.json();
+        const sub = data.submission;
+        const runs = data.runs;
+
+        if (runs.length > 0) {
+          const latestRun = runs[runs.length - 1];
+          metrics.innerText = `Lần chấm #${latestRun.run_number} (Run ID: #${latestRun.id}) • ${latestRun.max_time_ms}ms`;
+
+          // Cập nhật banner verdict
+          const v = sub.final_verdict;
+          banner.innerText = v;
+          banner.className = `px-2.5 py-1 rounded text-xs font-black font-mono ${getBadgeClass(v)}`;
+          progress.innerText = `Đã vượt qua: ${sub.pass_count}/${sub.total_cases} ca kiểm thử`;
+
+          // Render Grid từng testcase
+          if (latestRun.case_results) {
+            renderTestcasesGrid(latestRun.case_results);
+          }
+
+          // Dừng polling khi đã có kết quả cuối cùng
+          if (v !== 'Pending' && v !== 'Running') {
+            clearInterval(pollingInterval);
+            document.getElementById('console-meta').innerText = `Kết quả: ${v}`;
+            showToast(`Chấm bài hoàn tất: ${v} (${sub.pass_count}/${sub.total_cases})`, v === 'AC' ? 'success' : 'error');
+
+            // Báo đỏ dòng lỗi nếu gặp Compilation Error hoặc Runtime Error
+            if (v === 'CE' || v === 'RE') {
+              highlightErrorFromLog(latestRun.compiler_message || latestRun.system_error_log || '');
+            } else {
+              clearErrorHighlight();
+            }
+          }
+        }
+      } catch (e) {
+        console.error('Polling error', e);
+      }
+    };
+
+    // Kiểm tra ngay lập tức và sau đó mỗi 1.2 giây
+    checkStatus();
+    pollingInterval = setInterval(checkStatus, 1200);
+  }
 
     banner.className = 'px-2.5 py-1 rounded text-xs font-black font-mono badge-pending';
     banner.innerText = 'CHỜ CHẤM...';

@@ -14,7 +14,7 @@
   --border-glass-hover: rgba(0, 255, 255, 0.4);
   --cyan-accent: #00FFFF;
   --cyan-glow: rgba(0, 255, 255, 0.35);
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-sans: 'Times New Roman', Times, serif;
   --font-mono: 'JetBrains Mono', monospace;
 }
 
@@ -183,4 +183,56 @@ body {
 /* Trình soạn thảo & Code font */
 .font-mono-code {
   font-family: var(--font-mono);
+}
+
+/* ==============================================================================
+   CODEMIRROR DARK GLASSMORPHISM STYLES & ERROR LINE HIGHLIGHTING
+   ============================================================================== */
+.CodeMirror {
+  font-family: var(--font-mono) !important;
+  font-size: 13.5px !important;
+  line-height: 1.6 !important;
+  height: 100% !important;
+  background: transparent !important;
+  color: #F1F5F9 !important;
+}
+
+.CodeMirror-gutters {
+  background: rgba(10, 13, 20, 0.7) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+  padding-right: 4px;
+}
+
+.CodeMirror-linenumber {
+  color: #64748B !important;
+  font-size: 11px !important;
+}
+
+.CodeMirror-cursor {
+  border-left: 2px solid var(--cyan-accent) !important;
+}
+
+.CodeMirror-selected {
+  background: rgba(0, 255, 255, 0.2) !important;
+}
+
+/* Bắt lỗi ngoặc & Cặp ngoặc */
+.CodeMirror-matchingbracket {
+  color: #00FFFF !important;
+  font-weight: bold !important;
+  border-bottom: 2px solid #00FFFF !important;
+  background: rgba(0, 255, 255, 0.15) !important;
+}
+
+.CodeMirror-nonmatchingbracket {
+  color: #FF5555 !important;
+  background: rgba(255, 0, 0, 0.35) !important;
+  border-bottom: 2px solid #FF5555 !important;
+}
+
+/* Báo đỏ dòng lỗi sau khi bấm Chạy thử */
+.cm-error-line {
+  background: rgba(225, 29, 72, 0.25) !important;
+  border-left: 4px solid #F43F5E !important;
+  box-shadow: inset 0 0 15px rgba(244, 63, 94, 0.25) !important;
 }
