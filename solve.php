@@ -830,53 +830,6 @@ require_once __DIR__ . '/includes/sidebar.php';
     pollingInterval = setInterval(checkStatus, 1200);
   }
 
-    banner.className = 'px-2.5 py-1 rounded text-xs font-black font-mono badge-pending';
-    banner.innerText = 'CHỜ CHẤM...';
-    progress.innerText = `Bài nộp #${subId} đang nằm trong hàng đợi worker...`;
-    metrics.innerText = 'Trạng thái: Queued';
-    grid.innerHTML = '';
-
-    const checkStatus = async () => {
-      try {
-        const res = await fetch(`/BaiTapLon/api/submission_status.php?id=${subId}`);
-        if (!res.ok) return;
-
-        const data = await res.json();
-        const sub = data.submission;
-        const runs = data.runs;
-
-        if (runs.length > 0) {
-          const latestRun = runs[runs.length - 1];
-          metrics.innerText = `Lần chấm #${latestRun.run_number} (Run ID: #${latestRun.id}) • ${latestRun.max_time_ms}ms`;
-
-          // Cập nhật banner verdict
-          const v = sub.final_verdict;
-          banner.innerText = v;
-          banner.className = `px-2.5 py-1 rounded text-xs font-black font-mono ${getBadgeClass(v)}`;
-          progress.innerText = `Đã vượt qua: ${sub.pass_count}/${sub.total_cases} ca kiểm thử`;
-
-          // Render Grid từng testcase
-          if (latestRun.case_results) {
-            renderTestcasesGrid(latestRun.case_results);
-          }
-
-          // Dừng polling khi đã có kết quả cuối cùng
-          if (v !== 'Pending' && v !== 'Running') {
-            clearInterval(pollingInterval);
-            document.getElementById('console-meta').innerText = `Kết quả: ${v}`;
-            showToast(`Chấm bài hoàn tất: ${v} (${sub.pass_count}/${sub.total_cases})`, v === 'AC' ? 'success' : 'error');
-          }
-        }
-      } catch (e) {
-        console.error('Polling error', e);
-      }
-    };
-
-    // Kiểm tra ngay lập tức và sau đó mỗi 1.2 giây
-    checkStatus();
-    pollingInterval = setInterval(checkStatus, 1200);
-  }
-
   // Render các ca kiểm thử
   function renderTestcasesGrid(caseResults) {
     const grid = document.getElementById('testcases-grid');
