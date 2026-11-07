@@ -71,17 +71,18 @@ AI Agent cần kiểm tra thư mục `database/` và đảm bảo đầy đủ c
   - **Cơ chế chống ghi đè kết quả cũ (Stale Run Protection):** Hoạt động chuẩn xác, tự động gán cờ `Superseded` cho lần chấm cũ về muộn và bảo lưu nguyên vẹn trạng thái bài nộp mới nhất trên `submissions`. Đã nghiệm thu trọn vẹn qua `tests/verify_phase2.php`.
 
 ### GIAI ĐOẠN 3: HỆ THỐNG API BACKEND & BẢO VỆ DỮ LIỆU KÍN
-- [ ] **3.1.** **`api/run_test.php` (Chạy thử với dữ liệu tự nhập & Lưu nháp):**
-  - Cho phép người học lưu bản nháp (`code_drafts`) và đẩy yêu cầu chạy thử với custom input vào hàng đợi ưu tiên (hoặc worker thực thi cách ly), chỉ trả về `stdout`/`stderr` được giới hạn độ dài của dữ liệu tự nhập và sample testcases.
-- [ ] **3.2.** **`api/submit.php` (Nhận bài nộp & Xử lý Idempotency):**
-  - Kiểm tra `idempotency_key` từ client gửi lên. Nếu đã tồn tại trong `submissions` của user đó, trả về ngay `submission_id` cũ (HTTP 200) mà không tạo bản nộp mới.
-  - Nếu là lần nộp mới hợp lệ: Lưu `submissions` gắn cứng với `current_version_id` của bài tập và ngôn ngữ đã chọn, đồng thời tạo bản ghi đầu tiên trong `judging_runs` (`status = 'Queued'`) để Worker xử lý.
-- [ ] **3.3.** **`api/submission_status.php` (Theo dõi chấm thời gian thực & Bảo mật dữ liệu kín):**
-  - Kiểm tra quyền truy cập: Người học chỉ xem được chi tiết mã nguồn và các lần chấm của chính mình; Giảng viên xem được của học viên trong lớp; Admin xem được toàn bộ.
-  - **Tuyệt đối lọc bỏ:** Không bao giờ trả về `input_data`, `expected_output`, hay `actual_output` của các `test_cases` có `is_hidden = 1`. Đối với testcase kín, chỉ trả về số thứ tự ca kiểm thử, trạng thái (`AC`/`WA`/`TLE`/`RE`) và thời gian/bộ nhớ tiêu thụ.
-- [ ] **3.4.** **`api/version_rejudge.php` (Tạo phiên bản bộ dữ liệu mới & Chấm lại):**
-  - Dành cho Giảng viên/Admin: Khi sửa bộ dữ liệu kiểm tra hoặc giới hạn chạy, hệ thống tạo một bản ghi `problem_versions` mới (`version_number + 1`) cùng bộ `test_cases` mới, giữ nguyên vẹn phiên bản cũ.
-  - Kích hoạt **Chấm lại (Rejudge)**: Tạo thêm một bản ghi `judging_runs` mới cho các `submissions` được chọn (có thể chọn chấm lại trên phiên bản mới hoặc phiên bản gốc), giữ nguyên mã nguồn đã nộp và toàn bộ lịch sử `judging_runs` trước đó để đối chiếu.
+- [x] **3.1.** **`api/run_test.php` (Chạy thử với dữ liệu tự nhập & Lưu nháp):** *(Đã hoàn thành)*
+  - Cho phép người học lưu bản nháp (`code_drafts`) và thực thi chạy thử cách ly với custom input, trả về `stdout`/`stderr` an toàn.
+- [x] **3.2.** **`api/submit.php` (Nhận bài nộp & Xử lý Idempotency):** *(Đã hoàn thành - Phép thử 3)*
+  - Kiểm tra `idempotency_key` từ client: gửi lại cùng yêu cầu trả về ngay `submission_id` hiện hữu (HTTP 200, `is_duplicate = true`) không sinh bản ghi trùng; nộp chủ ý với key mới sinh bài mới (HTTP 201).
+  - Gắn cứng bài nộp với `current_version_id` và đẩy lượt thực thi đầu tiên vào `judging_runs` (`status = 'Queued'`).
+- [x] **3.3.** **`api/submission_status.php` (Theo dõi chấm thời gian thực & Bảo mật dữ liệu kín):** *(Đã hoàn thành - Phép thử 5)*
+  - Quyền riêng tư: Người học chỉ xem được mã của mình; Người học A gọi API xem mã Người học B bị chặn HTTP 403 Forbidden; Giảng viên xem được lớp mình phụ trách/bài tập do mình tạo; Admin xem toàn bộ.
+  - **Bảo vệ dữ liệu chấm kín:** Tuyệt đối ẩn `input_data`, `expected_output`, `actual_output` của tất cả ca kiểm thử có `is_hidden = 1` thành `[DỮ LIỆU ĐƯỢC BẢO VỆ]`.
+- [x] **3.4.** **`api/version_rejudge.php` (Tạo phiên bản bộ dữ liệu mới & Chấm lại):** *(Đã hoàn thành - Tình huống 2)*
+  - Phân quyền: Chỉ Giảng viên/Admin được phép tạo phiên bản mới và kích hoạt Rejudge.
+  - Tạo `problem_versions` mới (`version_number + 1`) kèm bộ testcases mới, giữ nguyên vẹn phiên bản cũ.
+  - Kích hoạt Chấm lại (Rejudge): Tạo lượt chấm mới trong `judging_runs` (`triggered_by = 'rejudge'`), giữ nguyên mã nguồn bài nộp và bảo lưu đầy đủ lịch sử các lần chấm trước để đối chiếu song song. Đã nghiệm thu qua `tests/verify_phase3.php`.
 
 ### GIAI ĐOẠN 4: GIAO DIỆN NGƯỜI DÙNG (UI/UX DARK GLASSMORPHISM)
 Toàn bộ các trang sử dụng chung Left Sidebar (`includes/sidebar.php`) và hiệu ứng nền chuyển động Đen - Xám đậm - Cyan (`assets/css/style.css`):
@@ -111,4 +112,4 @@ Toàn bộ các trang sử dụng chung Left Sidebar (`includes/sidebar.php`) v�
   - File `README.md` hướng dẫn chi tiết cách cài đặt CSDL, cách bật Web Server XAMPP, cách khởi chạy tiến trình Worker chấm bài độc lập (`php core/worker.php`), và cách chạy kịch bản kiểm thử tự động (`php tests/run_mandatory_tests.php`).
 
 ---
-**Trạng thái hiện tại:** **Giai đoạn 1 & Giai đoạn 2 đã hoàn thành xuất sắc và vượt qua 100% kiểm thử nghiệm thu (`php tests/verify_phase1.php` & `php tests/verify_phase2.php`).** Sẵn sàng chuyển sang **Giai đoạn 3: HỆ THỐNG API BACKEND & BẢO VỆ DỮ LIỆU KÍN**.
+**Trạng thái hiện tại:** **Giai đoạn 1, 2 và 3 đã hoàn thành xuất sắc và vượt qua 100% kiểm thử nghiệm thu (`php tests/verify_phase1.php`, `php tests/verify_phase2.php` & `php tests/verify_phase3.php`).** Sẵn sàng chuyển sang **Giai đoạn 4: GIAO DIỆN NGƯỜI DÙNG (UI/UX DARK GLASSMORPHISM)**.

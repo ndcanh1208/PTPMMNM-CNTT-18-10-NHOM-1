@@ -155,10 +155,10 @@ class Auth
      * Kiểm tra quyền xem chi tiết bài nộp & mã nguồn (Phép thử 5 - Rubric)
      * - Admin: Xem được tất cả.
      * - Chủ sở hữu (Owner): Xem được bài nộp của chính mình.
-     * - Giảng viên: Xem được bài nộp của học viên trong lớp mình phụ trách.
+     * - Giảng viên: Xem được bài nộp của học viên trong lớp mình phụ trách, hoặc bài tập do mình tạo.
      * - Học viên khác: TUYỆT ĐỐI KHÔNG ĐƯỢC XEM (Trả về false).
      */
-    public static function canViewSubmission(int $submissionUserId, ?int $classroomId = null): bool
+    public static function canViewSubmission(int $submissionUserId, ?int $classroomId = null, ?int $problemCreatorId = null): bool
     {
         $currentUserId = self::id();
         if ($currentUserId === null) {
@@ -177,13 +177,19 @@ class Auth
             return true;
         }
 
-        // Giảng viên kiểm tra xem có dạy lớp này không
-        if ($currentRole === 'instructor' && $classroomId !== null) {
-            $pdo = getDbConnection();
-            $stmt = $pdo->prepare("SELECT COUNT(*) FROM classrooms WHERE id = ? AND instructor_id = ?");
-            $stmt->execute([$classroomId, $currentUserId]);
-            if ((int)$stmt->fetchColumn() > 0) {
+        // Giảng viên kiểm tra quyền theo lớp hoặc theo người tạo đề
+        if ($currentRole === 'instructor') {
+            if ($problemCreatorId !== null && $currentUserId === $problemCreatorId) {
                 return true;
+            }
+
+            if ($classroomId !== null) {
+                $pdo = getDbConnection();
+                $stmt = $pdo->prepare("SELECT COUNT(*) FROM classrooms WHERE id = ? AND instructor_id = ?");
+                $stmt->execute([$classroomId, $currentUserId]);
+                if ((int)$stmt->fetchColumn() > 0) {
+                    return true;
+                }
             }
         }
 

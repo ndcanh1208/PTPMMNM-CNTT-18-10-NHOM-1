@@ -4,3 +4,6 @@ temp/runs/*
 *.log
 .DS_Store
 Thumbs.db
+
+cookie_*.txt
+
