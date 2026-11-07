@@ -85,20 +85,26 @@ AI Agent cần kiểm tra thư mục `database/` và đảm bảo đầy đủ c
   - Kích hoạt Chấm lại (Rejudge): Tạo lượt chấm mới trong `judging_runs` (`triggered_by = 'rejudge'`), giữ nguyên mã nguồn bài nộp và bảo lưu đầy đủ lịch sử các lần chấm trước để đối chiếu song song. Đã nghiệm thu qua `tests/verify_phase3.php`.
 
 ### GIAI ĐOẠN 4: GIAO DIỆN NGƯỜI DÙNG (UI/UX DARK GLASSMORPHISM)
-Toàn bộ các trang sử dụng chung Left Sidebar (`includes/sidebar.php`) và hiệu ứng nền chuyển động Đen - Xám đậm - Cyan (`assets/css/style.css`):
-- [ ] **4.1.** **Trang Chủ & Tổng quan (`index.php`)**: Thống kê nhanh tiến độ người học, trạng thái dịch vụ thực thi (Worker Online/Offline), danh sách bài tập nổi bật.
-- [ ] **4.2.** **Thư viện Bài tập (`problems.php`)**: Bộ lọc theo Chủ đề, Độ khó (`Easy`, `Medium`, `Hard`), trạng thái đã giải, hiển thị phiên bản đề hiện tại (`v1`, `v2`...) và nguồn gốc bài tập.
-- [ ] **4.3.** **Không gian Làm bài & Chấm trực tuyến (`solve.php`)** *(Tình huống sử dụng 1)*:
-  - Cột trái: Đề bài, mô tả Input/Output, giới hạn thời gian/bộ nhớ, nhãn phiên bản bộ dữ liệu (`Dataset v1.0`), các ví dụ công khai có nút Copy, tab xem Lịch sử nộp của bài hiện tại.
-  - Cột phải trên: Trình soạn thảo mã nguồn (hỗ trợ Python & C++), tự động lưu/khôi phục bản nháp (`Save Draft`), nút `Run Code` và `Submit` (kèm cơ chế sinh `idempotency_key` tự động).
-  - Cột phải dưới (Console): Tab nhập dữ liệu chạy thử tùy chỉnh (`Custom Testcases`) và Tab theo dõi tiến trình chấm trực tiếp (`Execution & Judging Queue`) hiển thị trạng thái từng testcase theo thời gian thực.
-- [ ] **4.4.** **Tra cứu Lịch sử Nộp bài & Tiến độ (`submissions.php`)**:
-  - Danh sách bài nộp có bộ lọc theo bài tập, ngôn ngữ, kết quả, lớp học.
-  - Modal/Trang chi tiết bài nộp: Xem lại mã nguồn (nếu đủ quyền), xem danh sách tất cả các lần chấm (`Run #1`, `Run #2`...) và bảng kết quả từng ca kiểm thử (ẩn dữ liệu của ca chấm kín).
-- [ ] **4.5.** **Phân hệ Giảng viên & Quản trị Thực thi (`admin.php` hoặc `manage_problems.php` & `rejudge_compare.php`)** *(Tình huống sử dụng 2)*:
-  - Giao diện tạo/sửa bài tập, quản lý các phiên bản bộ dữ liệu (`problem_versions`) và danh sách testcase công khai/ẩn.
-  - Giao diện **Chấm lại & Đối chiếu (Rejudge & Compare)**: Cho phép chọn phiên bản bộ dữ liệu mới, bấm "Chấm lại tất cả bài nộp", và hiển thị **Bảng đối chiếu song song (Side-by-Side Comparison)** giữa Lần chấm trước (`Run #1 - Dataset v1`) và Lần chấm mới (`Run #2 - Dataset v2`) để thấy rõ sự thay đổi kết quả (VD: từ `AC` sang `WA` khi thêm testcase biên) mà vẫn giữ nguyên lịch sử.
-  - Bảng điều khiển Dịch vụ Thực thi (cho Admin): Theo dõi trạng thái Worker, xem log lỗi hệ thống (`SE`) và nút thử lại các lượt chấm bị gián đoạn.
+Toàn bộ các trang sử dụng chung Left Sidebar (`includes/sidebar.php`), Header (`includes/header.php`), Footer (`includes/footer.php`) và hiệu ứng nền chuyển động Đen - Xám đậm - Cyan (`assets/css/style.css`):
+- [x] **4.1.** **Trang Chủ & Tổng quan (`index.php`)**: *(Đã hoàn thành)*
+  - Thống kê nhanh số bài tập, lượt nộp, tỷ lệ giải thành công.
+  - Trạng thái dịch vụ thực thi (Worker Online/Offline, số bài trong hàng đợi).
+  - Danh sách bài tập nổi bật và bảng xếp hạng thành tích người học.
+- [x] **4.2.** **Thư viện Bài tập (`problems.php`)**: *(Đã hoàn thành)*
+  - Bộ lọc theo Chủ đề, Độ khó (`Easy`, `Medium`, `Hard`), từ khóa tìm kiếm, trạng thái đã giải.
+  - Hiển thị phiên bản bộ dữ liệu hiện tại (`v1`, `v2`...) và nguồn gốc bản quyền bài tập (CSES, Kattis, MIT).
+- [x] **4.3.** **Không gian Làm bài & Chấm trực tuyến (`solve.php`)** *(Tình huống sử dụng 1 - Đã hoàn thành)*:
+  - Cột trái: Đề bài, mô tả Input/Output, giới hạn thời gian/bộ nhớ, nhãn phiên bản bộ dữ liệu (`Dataset v1.0`), các ví dụ công khai có nút Sao chép dữ liệu, tab xem Lịch sử nộp của bài hiện tại.
+  - Cột phải trên: Trình soạn thảo mã nguồn đa ngôn ngữ (Python 3 & C++17), phím tắt Indent/Outdent Tab, phím tắt Run/Submit (`Ctrl+Enter`), tự động lưu/khôi phục bản nháp vào CSDL (`code_drafts`), nút `Chạy thử` và `Nộp bài` (kèm cơ chế sinh UUIDv4 `idempotency_key` tự động chống nộp trùng).
+  - Cột phải dưới (Console): Tab nhập dữ liệu chạy thử tùy chỉnh (`Custom Testcases`) và Tab theo dõi tiến trình chấm trực tiếp (`Execution & Judging Queue`) polling thời gian thực từ API `submission_status.php`.
+- [x] **4.4.** **Tra cứu Lịch sử Nộp bài & Tiến độ (`submissions.php`)**: *(Đã hoàn thành)*
+  - Danh sách bài nộp có bộ lọc theo bài tập, ngôn ngữ, kết quả (`AC`, `WA`, `TLE`, `MLE`, `CE`, `RE`, `SE`), lớp học.
+  - Phân trang, hiển thị đầy đủ thời gian chạy, bộ nhớ sử dụng, phiên bản chấm.
+  - Modal chi tiết bài nộp: Xem lại mã nguồn (tuân thủ kiểm soát quyền riêng tư), xem danh sách các lần chấm (`Run #1`, `Run #2`...) và bảng kết quả từng ca kiểm thử (ẩn 100% dữ liệu của ca chấm kín thành `[DỮ LIỆU ĐƯỢC BẢO VỆ]`).
+- [x] **4.5.** **Phân hệ Giảng viên & Quản trị Thực thi (`manage_problems.php` & `rejudge_compare.php`)** *(Tình huống sử dụng 2 - Đã hoàn thành)*:
+  - Giao diện tạo/sửa bài tập (`manage_problems.php`), quản lý các phiên bản bộ dữ liệu (`problem_versions`) và danh sách testcase công khai/ẩn.
+  - Giao diện **Chấm lại & Đối chiếu (Rejudge & Compare - `rejudge_compare.php`)**: Cho phép chọn phiên bản bộ dữ liệu mới, bấm "Chấm lại tất cả bài nộp", và hiển thị **Bảng đối chiếu song song (Side-by-Side Comparison)** giữa Lần chấm trước (`Run #1 - Dataset v1`) và Lần chấm mới (`Run #2 - Dataset v2`) để thấy rõ sự thay đổi kết quả (VD: từ `AC` sang `WA` khi thêm testcase biên) mà vẫn giữ nguyên vẹn lịch sử.
+  - Đã nghiệm thu thành công 100% qua `tests/verify_phase4.php`.
 
 ### GIAI ĐOẠN 5: 5 PHÉP THỬ TỰ ĐỘNG BẮT BUỘC & BÀN GIAO MÃ NGUỒN MỞ
 - [ ] **5.1.** Xây dựng bộ kiểm thử tự động trong thư mục `tests/` (`tests/run_mandatory_tests.php`) kiểm tra và in báo cáo Pass/Fail cho đúng **5 phép thử bắt buộc ở Mục 6 của Đề bài**:
@@ -112,4 +118,4 @@ Toàn bộ các trang sử dụng chung Left Sidebar (`includes/sidebar.php`) v�
   - File `README.md` hướng dẫn chi tiết cách cài đặt CSDL, cách bật Web Server XAMPP, cách khởi chạy tiến trình Worker chấm bài độc lập (`php core/worker.php`), và cách chạy kịch bản kiểm thử tự động (`php tests/run_mandatory_tests.php`).
 
 ---
-**Trạng thái hiện tại:** **Giai đoạn 1, 2 và 3 đã hoàn thành xuất sắc và vượt qua 100% kiểm thử nghiệm thu (`php tests/verify_phase1.php`, `php tests/verify_phase2.php` & `php tests/verify_phase3.php`).** Sẵn sàng chuyển sang **Giai đoạn 4: GIAO DIỆN NGƯỜI DÙNG (UI/UX DARK GLASSMORPHISM)**.
+**Trạng thái hiện tại:** **Giai đoạn 1, 2, 3 và 4 đã hoàn thành xuất sắc và vượt qua 100% kiểm thử nghiệm thu (`php tests/verify_phase1.php`, `php tests/verify_phase2.php`, `php tests/verify_phase3.php` & `php tests/verify_phase4.php`).** Sẵn sàng chuyển sang **Giai đoạn 5: 5 PHÉP THỬ TỰ ĐỘNG BẮT BUỘC & BÀN GIAO MÃ NGUỒN MỞ**.

@@ -1,0 +1,186 @@
+/* ==============================================================================
+   BYTEFLOW ONLINE JUDGE - DESIGN SYSTEM (DARK GLASSMORPHISM)
+   Bảng màu: Đen sâu (#050507), Xám đậm (#12161f), Cyan phát sáng (#00FFFF)
+   ============================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg-deep: #050507;
+  --bg-card: rgba(18, 22, 31, 0.7);
+  --bg-card-subtle: rgba(25, 30, 42, 0.55);
+  --bg-input: rgba(10, 13, 20, 0.65);
+  --border-glass: rgba(255, 255, 255, 0.1);
+  --border-glass-hover: rgba(0, 255, 255, 0.4);
+  --cyan-accent: #00FFFF;
+  --cyan-glow: rgba(0, 255, 255, 0.35);
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-deep);
+  color: #E2E8F0;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+/* Nền chuyển động 3 màu Đen sâu - Xám đậm - Cyan */
+.animated-bg {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: -1;
+  background: 
+    radial-gradient(circle at 15% 15%, rgba(0, 255, 255, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 85% 85%, rgba(0, 150, 255, 0.06) 0%, transparent 45%),
+    radial-gradient(circle at 50% 50%, rgba(18, 22, 31, 0.95) 0%, #050507 100%);
+  background-attachment: fixed;
+}
+
+/* Hiệu ứng Glassmorphism */
+.glass-panel {
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-glass);
+}
+
+.glass-card {
+  background: var(--bg-card-subtle);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--border-glass);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-card:hover {
+  border-color: var(--border-glass-hover);
+  box-shadow: 0 4px 20px rgba(0, 255, 255, 0.12);
+  transform: translateY(-2px);
+}
+
+.glass-input {
+  background: var(--bg-input);
+  border: 1px solid var(--border-glass);
+  color: #F8FAFC;
+  transition: all 0.2s ease;
+}
+
+.glass-input:focus {
+  border-color: var(--cyan-accent);
+  box-shadow: 0 0 10px var(--cyan-glow);
+  outline: none;
+}
+
+/* Neon Glow & Buttons */
+.neon-glow {
+  box-shadow: 0 0 15px var(--cyan-glow);
+}
+
+.neon-border {
+  border-color: var(--cyan-accent);
+}
+
+.neon-text {
+  color: var(--cyan-accent);
+  text-shadow: 0 0 8px rgba(0, 255, 255, 0.4);
+}
+
+.btn-cyan {
+  background: linear-gradient(135deg, #00FFFF 0%, #00B4D8 100%);
+  color: #050507;
+  font-weight: 600;
+  border-radius: 0.5rem;
+  padding: 0.5rem 1.25rem;
+  transition: all 0.25s ease;
+  box-shadow: 0 0 12px rgba(0, 255, 255, 0.35);
+}
+
+.btn-cyan:hover {
+  box-shadow: 0 0 20px rgba(0, 255, 255, 0.6);
+  transform: translateY(-1px);
+}
+
+.btn-glass {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #E2E8F0;
+  font-weight: 500;
+  border-radius: 0.5rem;
+  padding: 0.5rem 1.25rem;
+  transition: all 0.25s ease;
+}
+
+.btn-glass:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--cyan-accent);
+  color: #FFFFFF;
+}
+
+/* Phù hiệu kết quả (Verdict Badges) */
+.badge-ac {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10B981;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.badge-wa {
+  background: rgba(239, 68, 68, 0.15);
+  color: #EF4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.badge-tle {
+  background: rgba(245, 158, 11, 0.15);
+  color: #F59E0B;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.badge-re {
+  background: rgba(217, 70, 239, 0.15);
+  color: #D946EF;
+  border: 1px solid rgba(217, 70, 239, 0.3);
+}
+
+.badge-ce {
+  background: rgba(249, 115, 22, 0.15);
+  color: #F97316;
+  border: 1px solid rgba(249, 115, 22, 0.3);
+}
+
+.badge-se {
+  background: rgba(148, 163, 184, 0.15);
+  color: #94A3B8;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+.badge-pending {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3B82F6;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 7px;
+  height: 7px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(10, 13, 20, 0.5);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--cyan-accent);
+}
+
+/* Trình soạn thảo & Code font */
+.font-mono-code {
+  font-family: var(--font-mono);
+}
