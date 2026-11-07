@@ -58,17 +58,17 @@ AI Agent cần kiểm tra thư mục `database/` và đảm bảo đầy đủ c
   - Lưu kèm bộ mã nguồn mẫu (Python & C++) cho các trường hợp: Đúng (`AC`), Sai biên (`WA`), Lỗi biên dịch (`CE`), Lỗi khi chạy (`RE`), Lặp vô hạn (`TLE`) trong thư mục `tests/sample_solutions/` và bộ giải 10 bài chuẩn trong `tests/sample_solutions/all_problems_ac/`. Toàn bộ đã nghiệm thu qua `tests/verify_phase1.php`.
 
 ### GIAI ĐOẠN 2: CORE ENGINE - ĐIỀU PHỐI CHẤM, SO SÁNH & CÁCH LY TIẾN TRÌNH
-- [ ] **2.1.** Cấu hình kết nối DB an toàn (`config/database.php`) và bộ hàm kiểm tra phân quyền, lọc dữ liệu nhạy cảm (`core/Auth.php`, `core/Security.php`).
-- [ ] **2.2.** Xây dựng **Bộ so sánh đầu ra (`core/Comparator.php`)**: Chuẩn hóa khoảng trắng cuối dòng (trailing whitespace) và ký tự xuống dòng (`\r\n` vs `\n`), so sánh chính xác đầu ra của chương trình với `expected_output`.
-- [ ] **2.3.** Xây dựng **Dịch vụ thực thi cách ly (`core/SandboxRunner.php`)**:
-  - Hỗ trợ **Python** và **C++** (biên dịch `g++ -O2` ra file thực thi tạm trong thư mục cách ly `temp/runs/{run_id}/`).
-  - Giới hạn thời gian chạy (Time Limit) bằng cơ chế giám sát tiến trình (`proc_open` với vòng lặp kiểm tra timeout độc lập), giới hạn kích thước đầu ra (Output Limit) và dọn dẹp thư mục tạm sau khi chạy.
-  - Bắt chính xác các mã thoát (exit code), tín hiệu timeout để phân loại: `CE` (Lỗi cú pháp/biên dịch), `RE` (Chia cho 0, truy cập mảng ngoài vùng nhớ, exit code != 0), `TLE` (Vượt `time_limit_ms`), `WA` (Sai kết quả), `AC` (Đúng), và `SE` (Không gọi được trình biên dịch / dịch vụ thực thi bị ngắt).
-- [ ] **2.4.** Xây dựng **Worker Điều phối Hàng đợi Độc lập (`core/worker.php`)**:
+- [x] **2.1.** Cấu hình kết nối DB an toàn (`config/database.php`) và bộ hàm kiểm tra phân quyền, lọc dữ liệu nhạy cảm (`core/Auth.php`, `core/Security.php`). *(Đã hoàn thành - Bảo vệ dữ liệu kín, lọc path nhạy cảm, chống XSS/CSRF, kiểm soát quyền riêng tư)*
+- [x] **2.2.** Xây dựng **Bộ so sánh đầu ra (`core/Comparator.php`)**: Chuẩn hóa khoảng trắng cuối dòng (trailing whitespace) và ký tự xuống dòng (`\r\n` vs `\n`), so sánh chính xác đầu ra của chương trình với `expected_output`. *(Đã hoàn thành)*
+- [x] **2.3.** Xây dựng **Dịch vụ thực thi cách ly (`core/SandboxRunner.php`)**: *(Đã hoàn thành)*
+  - Hỗ trợ **Python** và **C++** (thực thi và biên dịch trong thư mục cách ly `temp/runs/{run_id}/`).
+  - Giám sát tiến trình độc lập, triệt tiêu blocking stream trên Windows bằng cơ chế tệp tạm stdout/stderr, giới hạn thời gian (Time Limit) và bộ nhớ/kích thước đầu ra.
+  - Phân loại chính xác 100% 5 nhóm kết quả: `AC`, `WA`, `CE`, `RE`, `TLE` cùng lỗi hạ tầng `SE`.
+- [x] **2.4.** Xây dựng **Worker Điều phối Hàng đợi Độc lập (`core/worker.php`)**: *(Đã hoàn thành)*
   - Chạy qua CLI (`php core/worker.php`) tách biệt hoàn toàn với tiến trình Web Apache.
-  - Quét các bản ghi `judging_runs` có trạng thái `Queued`, khóa bản ghi (atomic lock) chuyển sang `Running`.
+  - Quét các bản ghi `judging_runs` có trạng thái `Queued`, khóa bản ghi nguyên tử chuyển sang `Running`.
   - Chạy qua từng `test_cases` của đúng `problem_version_id`, ghi vào `case_results` và tổng hợp kết quả cuối cùng vào `judging_runs`.
-  - **Cơ chế chống ghi đè kết quả cũ (Stale Run Protection):** Trước khi cập nhật `submissions.final_verdict` và `submissions.latest_run_id`, kiểm tra xem `judging_runs.id` hiện tại có lớn hơn hoặc bằng `submissions.latest_run_id` hay không. Nếu đã có một lần chấm mới hơn hoàn tất, đánh dấu lần chạy cũ là `Completed (Superseded)` và giữ nguyên kết quả mới trên bảng `submissions`.
+  - **Cơ chế chống ghi đè kết quả cũ (Stale Run Protection):** Hoạt động chuẩn xác, tự động gán cờ `Superseded` cho lần chấm cũ về muộn và bảo lưu nguyên vẹn trạng thái bài nộp mới nhất trên `submissions`. Đã nghiệm thu trọn vẹn qua `tests/verify_phase2.php`.
 
 ### GIAI ĐOẠN 3: HỆ THỐNG API BACKEND & BẢO VỆ DỮ LIỆU KÍN
 - [ ] **3.1.** **`api/run_test.php` (Chạy thử với dữ liệu tự nhập & Lưu nháp):**
@@ -111,4 +111,4 @@ Toàn bộ các trang sử dụng chung Left Sidebar (`includes/sidebar.php`) v�
   - File `README.md` hướng dẫn chi tiết cách cài đặt CSDL, cách bật Web Server XAMPP, cách khởi chạy tiến trình Worker chấm bài độc lập (`php core/worker.php`), và cách chạy kịch bản kiểm thử tự động (`php tests/run_mandatory_tests.php`).
 
 ---
-**Trạng thái hiện tại:** **Giai đoạn 1 đã hoàn thành xuất sắc và vượt qua 100% kiểm thử nghiệm thu (`php tests/verify_phase1.php`).** Sẵn sàng chuyển sang **Giai đoạn 2: CORE ENGINE - Điều phối chấm, so sánh & cách ly tiến trình**.
+**Trạng thái hiện tại:** **Giai đoạn 1 & Giai đoạn 2 đã hoàn thành xuất sắc và vượt qua 100% kiểm thử nghiệm thu (`php tests/verify_phase1.php` & `php tests/verify_phase2.php`).** Sẵn sàng chuyển sang **Giai đoạn 3: HỆ THỐNG API BACKEND & BẢO VỆ DỮ LIỆU KÍN**.
