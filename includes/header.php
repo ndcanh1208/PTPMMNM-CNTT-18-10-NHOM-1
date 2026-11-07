@@ -39,7 +39,7 @@ $currentUser = Auth::user();
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <link rel="stylesheet" href="/BaiTapLon/assets/css/style.css">
 </head>
-<body class="bg-[#050507] text-slate-200 antialiased min-h-screen flex">
+<body class="bg-[#050507] text-slate-200 antialiased min-h-screen">
   <div class="animated-bg"></div>
 
   <!-- Toast Notification Container -->

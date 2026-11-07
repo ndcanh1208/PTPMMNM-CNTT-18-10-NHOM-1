@@ -115,13 +115,13 @@ require_once __DIR__ . '/includes/header.php';
 require_once __DIR__ . '/includes/sidebar.php';
 ?>
 
-<div class="pl-64 flex-1 flex flex-col h-screen overflow-hidden">
+<div class="pl-64 w-full h-screen flex flex-col overflow-hidden">
   
   <!-- Không gian làm bài chia đôi 2 cột -->
-  <div class="flex-1 flex overflow-hidden">
+  <div class="flex-1 flex overflow-hidden w-full">
     
-    <!-- ==================== CỘT TRÁI (45%): ĐỀ BÀI & MÔ TẢ ==================== -->
-    <div class="w-[45%] h-full flex flex-col border-r border-white/10 glass-panel overflow-hidden">
+    <!-- ==================== CỘT TRÁI (42%): ĐỀ BÀI & MÔ TẢ ==================== -->
+    <div class="w-[42%] h-full flex flex-col border-r border-white/10 glass-panel overflow-hidden shrink-0">
       
       <!-- Header đề bài & Tabs -->
       <div class="p-6 border-b border-white/10 space-y-3 shrink-0 bg-white/[0.01]">
@@ -291,8 +291,8 @@ require_once __DIR__ . '/includes/sidebar.php';
     </div>
 
 
-    <!-- ==================== CỘT PHẢI (55%): TRÌNH SOẠN THẢO & CONSOLE ==================== -->
-    <div class="w-[55%] h-full flex flex-col overflow-hidden bg-[#0A0D14]/80">
+    <!-- ==================== CỘT PHẢI: TRÌNH SOẠN THẢO & CONSOLE ==================== -->
+    <div class="flex-1 min-w-0 h-full flex flex-col overflow-hidden bg-[#0A0D14]/80">
       
       <!-- Top Action Bar -->
       <div class="h-16 px-6 border-b border-white/10 flex items-center justify-between bg-black/40 shrink-0">
@@ -410,6 +410,21 @@ require_once __DIR__ . '/includes/sidebar.php';
 
     </div>
 
+  </div>
+
+  <!-- Status Bar IDE Chuyên nghiệp dưới đáy Workspace -->
+  <div class="h-7 px-4 border-t border-white/10 bg-[#07090E] flex items-center justify-between text-[11px] text-slate-500 shrink-0">
+    <div class="flex items-center space-x-4">
+      <span class="flex items-center space-x-1.5"><i class="fa-solid fa-code-branch text-cyan-400"></i><span class="text-slate-400">ByteFlow IDE</span></span>
+      <span>UTF-8</span>
+      <span>Spaces: 4</span>
+      <span class="text-slate-400 font-mono"><i class="fa-solid fa-keyboard text-[10px] mr-1"></i>Ctrl+Enter: Nộp bài</span>
+    </div>
+    <div class="flex items-center space-x-3 text-slate-400">
+      <span>Đề tài 20: Phát triển phần mềm mã nguồn mở</span>
+      <span class="text-white/20">|</span>
+      <span class="text-cyan-400 font-mono">ByteFlow v2.0</span>
+    </div>
   </div>
 
 </div>
@@ -737,4 +752,5 @@ require_once __DIR__ . '/includes/sidebar.php';
   }
 </script>
 
-<?php require_once __DIR__ . '/includes/footer.php'; ?>
+</body>
+</html>

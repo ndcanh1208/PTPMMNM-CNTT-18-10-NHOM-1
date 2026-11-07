@@ -133,6 +133,9 @@ while True:
 $p1Passed = true;
 $classifiedResults = [];
 
+// Dọn dẹp hàng đợi cũ để Worker xử lý chính xác từng lượt test mới
+$pdo->exec("UPDATE judging_runs SET status = 'Completed', verdict = 'SE' WHERE status = 'Queued'");
+
 // Khởi tạo worker đơn lẻ để chấm
 $worker = new JudgingWorker(true);
 

@@ -178,7 +178,8 @@ require_once __DIR__ . '/includes/header.php';
 require_once __DIR__ . '/includes/sidebar.php';
 ?>
 
-<div class="p-8 max-w-7xl mx-auto space-y-8">
+<div class="pl-64 min-h-screen flex flex-col w-full">
+  <main class="p-8 max-w-7xl w-full mx-auto space-y-8 flex-1">
   <!-- Tiêu đề trang & Nút hành động -->
   <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
     <div>
@@ -571,4 +572,5 @@ function openEditModal(problem) {
 }
 </script>
 
+  </main>
 <?php require_once __DIR__ . '/includes/footer.php'; ?>
