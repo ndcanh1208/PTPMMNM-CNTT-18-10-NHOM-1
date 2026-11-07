@@ -115,14 +115,14 @@ require_once __DIR__ . '/includes/header.php';
 require_once __DIR__ . '/includes/sidebar.php';
 ?>
 
-<!-- CodeMirror 5 (Syntax Highlighting, Auto Close & Match Brackets, Auto Indent) -->
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+<!-- CodeMirror 5 Local Assets (Offline Ready, 0ms latency) -->
+<link rel="stylesheet" href="/BaiTapLon/assets/vendor/codemirror/codemirror.min.css">
+<link rel="stylesheet" href="/BaiTapLon/assets/vendor/codemirror/dracula.min.css">
+<script src="/BaiTapLon/assets/vendor/codemirror/codemirror.min.js"></script>
+<script src="/BaiTapLon/assets/vendor/codemirror/python.min.js"></script>
+<script src="/BaiTapLon/assets/vendor/codemirror/clike.min.js"></script>
+<script src="/BaiTapLon/assets/vendor/codemirror/matchbrackets.min.js"></script>
+<script src="/BaiTapLon/assets/vendor/codemirror/closebrackets.min.js"></script>
 
 <div class="pl-64 w-full h-screen flex flex-col overflow-hidden">
   
@@ -342,8 +342,9 @@ require_once __DIR__ . '/includes/sidebar.php';
       </div>
 
       <!-- Vùng soạn thảo mã nguồn (Code Editor với Syntax Highlighting & CodeMirror) -->
-      <div class="flex-1 relative overflow-hidden flex flex-col bg-[#070A0F]">
-        <textarea id="code-editor" spellcheck="false"><?= Security::escape($initialCode) ?></textarea>
+      <div class="flex-1 min-h-0 relative flex flex-col bg-[#070A0F] overflow-hidden">
+        <textarea id="code-editor" spellcheck="false" 
+          class="w-full h-full bg-[#070A0F] text-slate-100 font-mono text-sm p-4 resize-none outline-none leading-relaxed border-none focus:ring-0"><?= Security::escape($initialCode) ?></textarea>
       </div>
 
       <!-- ==================== CỘT DƯỚI: TABBED CONSOLE (40% chiều cao) ==================== -->
@@ -446,56 +447,87 @@ require_once __DIR__ . '/includes/sidebar.php';
   // Khởi tạo CodeMirror Trình soạn thảo chuyên nghiệp (Syntax Highlighting, Auto Close/Match Brackets, Auto Indent)
   const codeTextarea = document.getElementById('code-editor');
   const initialLang = document.getElementById('code-language').value;
+  let cmEditor = null;
 
-  const cmEditor = CodeMirror.fromTextArea(codeTextarea, {
-    mode: initialLang === 'cpp' ? 'text/x-c++src' : 'python',
-    theme: 'dracula',
-    lineNumbers: true,
-    matchBrackets: true,       // Bắt lỗi và đối chiếu cặp ngoặc
-    autoCloseBrackets: true,   // Tự động đóng ngoặc (), [], {}, '', ""
-    indentUnit: 4,
-    tabSize: 4,
-    indentWithTabs: false,
-    smartIndent: true,         // Thụt lề ngay lập tức sau dấu : hoặc {
-    lineWrapping: false,
-    extraKeys: {
-      "Tab": function(cm) {
-        if (cm.somethingSelected()) {
-          cm.indentSelection("add");
-        } else {
-          cm.replaceSelection("    ", "end");
+  if (typeof CodeMirror !== 'undefined') {
+    cmEditor = CodeMirror.fromTextArea(codeTextarea, {
+      mode: initialLang === 'cpp' ? 'text/x-c++src' : 'python',
+      theme: 'dracula',
+      lineNumbers: true,
+      matchBrackets: true,       // Bắt lỗi và đối chiếu cặp ngoặc
+      autoCloseBrackets: true,   // Tự động đóng ngoặc (), [], {}, '', ""
+      indentUnit: 4,
+      tabSize: 4,
+      indentWithTabs: false,
+      smartIndent: true,         // Thụt lề ngay lập tức sau dấu : hoặc {
+      lineWrapping: false,
+      extraKeys: {
+        "Tab": function(cm) {
+          if (cm.somethingSelected()) {
+            cm.indentSelection("add");
+          } else {
+            cm.replaceSelection("    ", "end");
+          }
+        },
+        "Shift-Tab": function(cm) {
+          cm.indentSelection("subtract");
+        },
+        "Ctrl-Enter": function() {
+          submitSolution();
         }
-      },
-      "Shift-Tab": function(cm) {
-        cm.indentSelection("subtract");
-      },
-      "Ctrl-Enter": function() {
-        submitSolution();
       }
-    }
-  });
+    });
 
-  // Tự động căn chỉnh kích thước khi nạp trang
-  setTimeout(() => cmEditor.refresh(), 100);
+    cmEditor.setSize('100%', '100%');
+    setTimeout(() => cmEditor.refresh(), 50);
+    window.addEventListener('resize', () => { if (cmEditor) cmEditor.refresh(); });
+  } else {
+    // Fallback nếu CodeMirror chưa kịp nạp
+    codeTextarea.addEventListener('keydown', function(e) {
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        const start = this.selectionStart;
+        const end = this.selectionEnd;
+        this.value = this.value.substring(0, start) + "    " + this.value.substring(end);
+        this.selectionStart = this.selectionEnd = start + 4;
+      }
+    });
+  }
+
+  function getEditorValue() {
+    return cmEditor ? cmEditor.getValue() : codeTextarea.value;
+  }
+
+  function setEditorValue(val) {
+    if (cmEditor) {
+      cmEditor.setValue(val);
+    } else {
+      codeTextarea.value = val;
+    }
+  }
 
   // Quản lý báo đỏ dòng lỗi
   let currentErrorLineHandle = null;
 
   function clearErrorHighlight() {
-    if (currentErrorLineHandle !== null) {
+    if (cmEditor && currentErrorLineHandle !== null) {
       cmEditor.removeLineClass(currentErrorLineHandle, 'background', 'cm-error-line');
       currentErrorLineHandle = null;
     }
   }
 
   // Tự động xóa vệt đỏ khi người dùng gõ sửa code
-  cmEditor.on('change', function() {
-    clearErrorHighlight();
-  });
+  if (cmEditor) {
+    cmEditor.on('change', function() {
+      clearErrorHighlight();
+    });
+  } else {
+    codeTextarea.addEventListener('input', clearErrorHighlight);
+  }
 
   // Hàm trích xuất và báo đỏ dòng lỗi từ log kết quả thực thi
   function highlightErrorFromLog(logText) {
-    if (!logText) return;
+    if (!logText || !cmEditor) return;
     clearErrorHighlight();
 
     let errorLine = null;
@@ -572,8 +604,10 @@ require_once __DIR__ . '/includes/sidebar.php';
   function changeLanguage(lang) {
     if (confirm("Chuyển ngôn ngữ sẽ nạp mã mẫu mặc định nếu bạn chưa lưu nháp. Bạn có muốn tiếp tục?")) {
       const template = STARTER_TEMPLATES[lang] || '';
-      cmEditor.setValue(template);
-      cmEditor.setOption('mode', lang === 'cpp' ? 'text/x-c++src' : 'python');
+      setEditorValue(template);
+      if (cmEditor) {
+        cmEditor.setOption('mode', lang === 'cpp' ? 'text/x-c++src' : 'python');
+      }
       clearErrorHighlight();
       showToast(`Đã chuyển sang ${lang.toUpperCase()}`, 'info');
     }
@@ -588,7 +622,7 @@ require_once __DIR__ . '/includes/sidebar.php';
 
   // 1. LƯU BẢN NHÁP
   async function saveDraft() {
-    const code = cmEditor.getValue();
+    const code = getEditorValue();
     const lang = document.getElementById('code-language').value;
 
     const res = await fetch('/BaiTapLon/api/run_test.php', {
@@ -614,7 +648,7 @@ require_once __DIR__ . '/includes/sidebar.php';
 
   // 2. CHẠY THỬ VỚI CUSTOM INPUT
   async function runCustomTest() {
-    const code = cmEditor.getValue();
+    const code = getEditorValue();
     const lang = document.getElementById('code-language').value;
     const input = document.getElementById('custom-input').value;
     const outBox = document.getElementById('custom-output');
@@ -681,7 +715,7 @@ require_once __DIR__ . '/includes/sidebar.php';
 
   // 3. NỘP BÀI CHÍNH THỨC (IDEMPOTENCY & CHẤM THỜI GIAN THỰC)
   async function submitSolution() {
-    const code = cmEditor.getValue();
+    const code = getEditorValue();
     const lang = document.getElementById('code-language').value;
 
     if (!code.trim()) {
