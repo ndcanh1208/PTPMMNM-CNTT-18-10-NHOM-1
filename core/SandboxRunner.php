@@ -51,6 +51,7 @@ class SandboxRunner
         // 2. Phát hiện G++
         $candidatesGpp = [
             'g++',
+            'C:\\Users\\Administrator\\AppData\\Local\\Microsoft\\WinGet\\Packages\\BrechtSanders.WinLibs.POSIX.UCRT_Microsoft.Winget.Source_8wekyb3d8bbwe\\mingw64\\bin\\g++.exe',
             'C:\\MinGW\\bin\\g++.exe',
             'C:\\msys64\\ucrt64\\bin\\g++.exe',
             'C:\\msys64\\mingw64\\bin\\g++.exe',
@@ -60,9 +61,13 @@ class SandboxRunner
         // Tìm thêm trong thư mục LocalAppData WinGet packages nếu có
         $localAppData = getenv('LOCALAPPDATA');
         if ($localAppData) {
-            $wingetMatches = glob($localAppData . '/Microsoft/WinGet/Packages/*mingw*/bin/g++.exe');
+            $wingetMatches = glob($localAppData . '/Microsoft/WinGet/Packages/*WinLibs*/mingw64/bin/g++.exe');
             if ($wingetMatches) {
                 $candidatesGpp = array_merge($wingetMatches, $candidatesGpp);
+            }
+            $generalMatches = glob($localAppData . '/Microsoft/WinGet/Packages/*/*/*/g++.exe');
+            if ($generalMatches) {
+                $candidatesGpp = array_merge($generalMatches, $candidatesGpp);
             }
         }
 
@@ -155,9 +160,9 @@ class SandboxRunner
                 ];
             }
 
-            // Biên dịch với g++ -O2 -std=c++17
+            // Biên dịch với g++ -O2 -static -std=c++17 (static để không phụ thuộc DLL ngoài)
             $compileCmd = sprintf(
-                '"%s" -O2 -std=c++17 "%s" -o "%s" 2>&1',
+                '"%s" -O2 -static -std=c++17 "%s" -o "%s" 2>&1',
                 $this->gppPath,
                 $sourceFile,
                 $exeFile
