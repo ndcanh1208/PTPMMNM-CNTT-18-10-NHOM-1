@@ -223,8 +223,7 @@ echo "  [PASS] 2.3. Nộp mới có chủ ý với key mới sinh bản nộp m�
 
 // Cho Worker xử lý các lượt chấm trong hàng đợi
 $worker = new JudgingWorker(true, 1);
-$worker->processNextQueuedRun(); // Chấm SubId1
-$worker->processNextQueuedRun(); // Chấm SubId3
+while ($worker->processNextQueuedRun()) {}
 
 // ------------------------------------------------------------------
 // BƯỚC 3: KIỂM THỬ API THEO DÕI & BẢO VỆ DỮ LIỆU KÍN (api/submission_status.php - Phép thử 5)
@@ -342,7 +341,7 @@ if ($rejudgeRes['status'] !== 200 || empty($rejudgeRes['body']['queued_runs'])) 
 echo "  [PASS] 4.3. Kích hoạt Rejudge bài nộp #{$subId1} vào hàng đợi thành công.\n";
 
 // Cho Worker thực hiện lượt chấm lại
-$worker->processNextQueuedRun();
+while ($worker->processNextQueuedRun()) {}
 
 // 4.4 Kiểm tra đối chiếu: Lịch sử Run #1 và Run #2 đều được bảo lưu nguyên vẹn
 $checkHistory = httpApiRequest("{$baseUrl}/submission_status.php", 'GET', [

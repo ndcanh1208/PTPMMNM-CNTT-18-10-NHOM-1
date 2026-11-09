@@ -313,6 +313,9 @@ if ($checkReq1Req2 && $checkReq3 && $totalWithSharedKey === 1) {
     printResult(false, "Cơ chế Idempotency chưa ngăn chặn được việc nộp trùng.");
 }
 
+// Dọn sạch hàng đợi từ phép thử nộp trùng
+while ($worker->processNextQueuedRun()) {}
+
 // =========================================================================================
 // PHÉP THỬ 4: CHỐNG GHI ĐÈ KẾT QUẢ CŨ VỀ MUỘN (STALE RUN PROTECTION / SUPERSEDED)
 // =========================================================================================

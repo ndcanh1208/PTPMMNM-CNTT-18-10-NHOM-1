@@ -185,6 +185,10 @@ $sandbox->cleanupRunDir($tempDir);
 // ------------------------------------------------------------------
 echo "\n[BƯỚC 4] Kiểm tra Worker Điều phối Hàng đợi Độc lập (End-to-End):\n";
 
+// Dọn dẹp hàng đợi cũ nếu còn tồn đọng
+$cleanWorker = new JudgingWorker(true, 1);
+while ($cleanWorker->processNextQueuedRun()) {}
+
 // 4.1 Tạo một bài nộp giả lập ở trạng thái Pending / Queued
 $idempotencyKey = 'test_worker_' . bin2hex(random_bytes(8));
 $subInsert = $pdo->prepare("
