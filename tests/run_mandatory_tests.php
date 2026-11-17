@@ -164,11 +164,19 @@ foreach ($testSolutions as $label => $data) {
     // Worker xử lý chấm lượt này
     $worker->processNextQueuedRun();
 
-    // Đọc kết quả đã chấm từ CSDL
-    $runCheck = $pdo->query("SELECT verdict, max_time_ms, max_memory_kb FROM judging_runs WHERE id = {$runId}")->fetch();
-    $subCheck = $pdo->query("SELECT final_verdict FROM submissions WHERE id = {$subId}")->fetch();
-
-    $actualVerdict = $runCheck['verdict'] ?? 'Pending';
+    // Đọc kết quả đã chấm từ CSDL (chờ tối đa 12s nếu worker nền đang thực thi TLE)
+    $actualVerdict = 'Pending';
+    $runCheck = null;
+    $maxWait = 12;
+    $startWait = time();
+    do {
+        $runCheck = $pdo->query("SELECT verdict, max_time_ms, max_memory_kb FROM judging_runs WHERE id = {$runId}")->fetch();
+        $actualVerdict = $runCheck['verdict'] ?? 'Pending';
+        if ($actualVerdict !== 'Pending' && $actualVerdict !== 'Running') {
+            break;
+        }
+        sleep(1);
+    } while (time() - $startWait < $maxWait);
     $classifiedResults[$label] = $actualVerdict;
 
     $isMatch = ($actualVerdict === $data['expected']);

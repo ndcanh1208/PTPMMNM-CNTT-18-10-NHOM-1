@@ -362,6 +362,16 @@ require_once __DIR__ . '/includes/sidebar.php';
                     <i class="fa-solid fa-pen-to-square"></i>
                   </button>
 
+                  <!-- Sửa & Quản lý Test Cases -->
+                  <button 
+                    type="button"
+                    onclick='openTestcasesModal(<?= $p['id'] ?>, <?= htmlspecialchars(json_encode($p['title']), ENT_QUOTES, 'UTF-8') ?>, <?= (int)$p['total_submissions'] ?>, <?= (int)($p['current_version_number'] ?? 1) ?>)'
+                    class="p-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 hover:text-amber-300 border border-amber-500/30 transition-colors inline-block cursor-pointer"
+                    title="Xem, Thêm & Sửa Bộ Test Cases"
+                  >
+                    <i class="fa-solid fa-vial"></i>
+                  </button>
+
                   <!-- Tạo phiên bản mới / Quản lý testcase -->
                   <a 
                     href="/BaiTapLon/rejudge_compare.php?problem_id=<?= $p['id'] ?>"
@@ -578,6 +588,71 @@ require_once __DIR__ . '/includes/sidebar.php';
   </div>
 </div>
 
+<!-- MODAL 3: QUẢN LÝ & SỬA TEST CASES -->
+<div id="testcasesModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm hidden p-4 overflow-y-auto">
+  <div class="glass-panel w-full max-w-4xl rounded-2xl border border-white/20 p-6 my-8 space-y-6 shadow-2xl flex flex-col max-h-[92vh]">
+    <!-- Header -->
+    <div class="flex items-center justify-between border-b border-white/10 pb-4 shrink-0">
+      <div class="space-y-1">
+        <h3 class="text-xl font-bold text-white flex items-center space-x-2">
+          <i class="fa-solid fa-vial text-amber-400"></i>
+          <span>Quản lý & Sửa Test Cases</span>
+        </h3>
+        <p class="text-xs text-slate-400 flex items-center gap-2">
+          <span id="tc-modal-title" class="font-semibold text-cyan-300">Đang tải...</span>
+          <span>•</span>
+          <span id="tc-modal-version-badge" class="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 text-[11px] font-mono">v1</span>
+          <span>•</span>
+          <span id="tc-modal-sub-badge" class="px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/30 text-[11px] font-mono">0 bài nộp</span>
+        </p>
+      </div>
+      <button onclick="closeModal('testcasesModal')" class="text-slate-400 hover:text-white text-xl">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <!-- Alert / Banner thông báo chế độ hoạt động -->
+    <div id="tc-mode-banner" class="shrink-0"></div>
+
+    <!-- Ô nhập Changelog (Chỉ hiện khi bài tập đã có bài nộp) -->
+    <div id="tc-changelog-container" class="shrink-0 hidden">
+      <label class="block text-xs uppercase font-bold text-amber-300 mb-1">
+        <i class="fa-solid fa-pen-nib mr-1"></i>Ghi chú phiên bản mới (Changelog)
+      </label>
+      <input type="text" id="tc-changelog-input" value="Sửa và cập nhật bộ test case" placeholder="VD: Sửa test case #2 do nhầm kết quả mong đợi" class="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-amber-500/30 text-white text-sm focus:outline-none focus:border-amber-400 font-sans">
+      <p class="text-[11px] text-slate-400 mt-1">Ghi chú này sẽ được lưu vào lịch sử phiên bản để học sinh và giảng viên tiện theo dõi.</p>
+    </div>
+
+    <!-- Danh sách Test Cases (Cuộn) -->
+    <div class="flex-1 overflow-y-auto space-y-4 pr-1 min-h-[220px]" id="tc-list-container">
+      <!-- Dynamic testcase cards loaded here -->
+    </div>
+
+    <!-- Nút thêm test case -->
+    <div class="shrink-0 flex items-center justify-between pt-2 border-t border-white/10">
+      <button type="button" onclick="addTestcaseRow()" class="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-cyan-400 hover:text-cyan-300 border border-cyan-500/30 text-xs font-bold flex items-center space-x-2 transition-colors cursor-pointer">
+        <i class="fa-solid fa-plus"></i>
+        <span>Thêm Test Case Mới</span>
+      </button>
+      <span class="text-xs text-slate-400" id="tc-total-count-label">Tổng cộng: 0 test case</span>
+    </div>
+
+    <!-- Footer actions -->
+    <div class="flex items-center justify-between pt-4 border-t border-white/10 shrink-0">
+      <div id="tc-save-status" class="text-xs"></div>
+      <div class="flex items-center space-x-3">
+        <button type="button" onclick="closeModal('testcasesModal')" class="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-sm font-semibold transition-colors">
+          Hủy bỏ
+        </button>
+        <button type="button" id="btn-save-testcases" onclick="saveTestcases()" class="btn-cyan px-6 py-2.5 rounded-xl text-black font-bold text-sm cursor-pointer shadow-[0_0_15px_rgba(0,255,255,0.4)] flex items-center space-x-2">
+          <i class="fa-solid fa-floppy-disk"></i>
+          <span>Lưu Bộ Test Cases</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 function openModal(modalId) {
   document.getElementById(modalId).classList.remove('hidden');
@@ -590,8 +665,10 @@ function closeModal(modalId) {
 window.addEventListener('click', function(e) {
   const createModal = document.getElementById('createModal');
   const editModal = document.getElementById('editModal');
+  const testcasesModal = document.getElementById('testcasesModal');
   if (e.target === createModal) closeModal('createModal');
   if (e.target === editModal) closeModal('editModal');
+  if (e.target === testcasesModal) closeModal('testcasesModal');
 });
 
 function openEditModal(problem) {
@@ -607,6 +684,277 @@ function openEditModal(problem) {
   document.getElementById('edit_output_description').value = problem.output_description || '';
   document.getElementById('edit_constraints').value = problem.constraints || '';
   openModal('editModal');
+}
+
+// -------------------------------------------------------------
+// QUẢN LÝ & SỬA TEST CASES
+// -------------------------------------------------------------
+let currentTcProblemId = 0;
+let currentTcSubmissionsCount = 0;
+let currentTcVersionNumber = 1;
+
+function escapeHtml(text) {
+  if (text === null || text === undefined) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+async function openTestcasesModal(problemId, problemTitle, totalSubmissions, currentVersionNumber) {
+  currentTcProblemId = problemId;
+  currentTcSubmissionsCount = parseInt(totalSubmissions) || 0;
+  currentTcVersionNumber = parseInt(currentVersionNumber) || 1;
+
+  document.getElementById('tc-modal-title').textContent = problemTitle;
+  document.getElementById('tc-modal-version-badge').textContent = 'v' + currentTcVersionNumber;
+  document.getElementById('tc-modal-sub-badge').textContent = currentTcSubmissionsCount + ' bài nộp';
+  document.getElementById('tc-save-status').innerHTML = '';
+
+  const modeBanner = document.getElementById('tc-mode-banner');
+  const changelogContainer = document.getElementById('tc-changelog-container');
+
+  if (currentTcSubmissionsCount === 0) {
+    modeBanner.innerHTML = `
+      <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-start space-x-3">
+        <i class="fa-solid fa-circle-check text-base mt-0.5 text-emerald-400 shrink-0"></i>
+        <div class="space-y-1">
+          <div class="font-bold text-emerald-300">Chế độ Sửa Trực Tiếp (In-place Update)</div>
+          <p class="text-slate-300">Bài tập này <strong>chưa có bài nộp nào</strong> từ học sinh. Bạn có thể tự do thêm, sửa dữ liệu vào/ra hoặc xóa test case. Thay đổi sẽ được cập nhật trực tiếp vào phiên bản v${currentTcVersionNumber} hiện tại mà không tạo phiên bản mới.</p>
+        </div>
+      </div>
+    `;
+    changelogContainer.classList.add('hidden');
+  } else {
+    modeBanner.innerHTML = `
+      <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-start space-x-3">
+        <i class="fa-solid fa-triangle-exclamation text-base mt-0.5 text-amber-400 shrink-0"></i>
+        <div class="space-y-1">
+          <div class="font-bold text-amber-300">Chế độ Bảo Toàn Lịch Sử & Tự Động Chấm Lại (Versioned Rejudge)</div>
+          <p class="text-slate-300">Bài tập đã có <strong>${currentTcSubmissionsCount} bài nộp</strong> từ học sinh. Nhằm bảo vệ tính toàn vẹn của các lần nộp cũ và đối chiếu công bằng, hệ thống sẽ tự động:</p>
+          <ul class="list-disc list-inside space-y-0.5 text-slate-300 ml-1 mt-1">
+            <li>Tạo phiên bản mới <strong>v${currentTcVersionNumber + 1}</strong> chứa bộ test case đã sửa</li>
+            <li>Đặt <strong>v${currentTcVersionNumber + 1}</strong> làm phiên bản có hiệu lực tiếp theo</li>
+            <li>Tự động đưa <strong>toàn bộ ${currentTcSubmissionsCount} bài nộp cũ vào hàng đợi chấm lại</strong> (Rejudge) trên phiên bản mới</li>
+          </ul>
+        </div>
+      </div>
+    `;
+    changelogContainer.classList.remove('hidden');
+    document.getElementById('tc-changelog-input').value = `Sửa bộ test case cho phiên bản v${currentTcVersionNumber + 1}`;
+  }
+
+  const listContainer = document.getElementById('tc-list-container');
+  listContainer.innerHTML = `
+    <div class="py-12 text-center text-slate-400">
+      <i class="fa-solid fa-spinner fa-spin text-2xl mb-2 text-cyan-400"></i>
+      <p class="text-sm">Đang tải danh sách test cases...</p>
+    </div>
+  `;
+
+  openModal('testcasesModal');
+
+  try {
+    const res = await fetch(`/BaiTapLon/api/version_rejudge.php?action=get_testcases&problem_id=${problemId}`);
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      listContainer.innerHTML = `
+        <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm">
+          <i class="fa-solid fa-circle-xmark mr-2"></i>${escapeHtml(data.error || 'Không thể tải test cases.')}
+        </div>
+      `;
+      return;
+    }
+
+    listContainer.innerHTML = '';
+    const testCases = data.test_cases || [];
+
+    if (testCases.length === 0) {
+      addTestcaseRow();
+    } else {
+      testCases.forEach((tc, idx) => {
+        listContainer.appendChild(createTestcaseCardElement(tc, idx));
+      });
+    }
+
+    updateTestcaseLabels();
+
+  } catch (err) {
+    listContainer.innerHTML = `
+      <div class="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-sm">
+        <i class="fa-solid fa-circle-xmark mr-2"></i>Lỗi kết nối khi tải test cases: ${escapeHtml(err.message)}
+      </div>
+    `;
+  }
+}
+
+function createTestcaseCardElement(tc, idx) {
+  const card = document.createElement('div');
+  card.className = 'testcase-card p-4 rounded-xl bg-white/[0.03] border border-white/10 space-y-3 hover:border-white/20 transition-all';
+  
+  const isSampleChecked = tc.is_sample == 1 ? 'checked' : '';
+  const isHiddenChecked = tc.is_hidden == 1 ? 'checked' : '';
+  const points = tc.points !== undefined ? tc.points : 10;
+
+  card.innerHTML = `
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/5 pb-2.5 gap-2">
+      <div class="flex items-center space-x-3 flex-wrap gap-y-1">
+        <span class="font-mono font-bold text-xs text-amber-400 tc-number-label">Test Case #${idx + 1}</span>
+        <label class="flex items-center space-x-1.5 text-xs text-slate-300 cursor-pointer select-none">
+          <input type="checkbox" class="tc-sample-check rounded bg-black/40 border-white/20 text-cyan-400 focus:ring-0" ${isSampleChecked}>
+          <span>Công khai (Sample)</span>
+        </label>
+        <label class="flex items-center space-x-1.5 text-xs text-slate-300 cursor-pointer select-none">
+          <input type="checkbox" class="tc-hidden-check rounded bg-black/40 border-white/20 text-purple-400 focus:ring-0" ${isHiddenChecked}>
+          <span>Chấm kín (Hidden)</span>
+        </label>
+      </div>
+      <div class="flex items-center space-x-3 self-end sm:self-auto">
+        <div class="flex items-center space-x-1.5 text-xs">
+          <span class="text-slate-400">Điểm:</span>
+          <input type="number" min="1" max="100" class="tc-points-input w-16 px-2 py-1 rounded bg-black/50 border border-white/15 text-white font-mono text-xs text-center focus:outline-none focus:border-cyan-400" value="${points}">
+        </div>
+        <button type="button" onclick="removeTestcaseRow(this)" class="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs transition-colors cursor-pointer" title="Xóa test case này">
+          <i class="fa-solid fa-trash-can"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div>
+        <label class="block text-[11px] font-semibold text-slate-400 mb-1 font-mono">Dữ liệu vào (Input)</label>
+        <textarea rows="3" class="tc-input-data w-full p-2.5 rounded-lg bg-black/50 border border-white/15 text-white font-mono text-xs focus:outline-none focus:border-cyan-400" placeholder="Nhập dữ liệu vào...">${escapeHtml(tc.input_data || '')}</textarea>
+      </div>
+      <div>
+        <label class="block text-[11px] font-semibold text-slate-400 mb-1 font-mono">Dữ liệu ra mong đợi (Expected Output)</label>
+        <textarea rows="3" class="tc-expected-output w-full p-2.5 rounded-lg bg-black/50 border border-white/15 text-white font-mono text-xs focus:outline-none focus:border-cyan-400" placeholder="Nhập kết quả mong đợi...">${escapeHtml(tc.expected_output || '')}</textarea>
+      </div>
+    </div>
+  `;
+
+  return card;
+}
+
+function addTestcaseRow() {
+  const container = document.getElementById('tc-list-container');
+  const count = container.querySelectorAll('.testcase-card').length;
+  
+  const newTc = {
+    input_data: '',
+    expected_output: '',
+    is_sample: count === 0 ? 1 : 0,
+    is_hidden: count === 0 ? 0 : 1,
+    points: 10
+  };
+
+  container.appendChild(createTestcaseCardElement(newTc, count));
+  updateTestcaseLabels();
+
+  // Scroll xuống dưới cùng
+  container.scrollTop = container.scrollHeight;
+}
+
+function removeTestcaseRow(button) {
+  const container = document.getElementById('tc-list-container');
+  const cards = container.querySelectorAll('.testcase-card');
+  if (cards.length <= 1) {
+    alert('Bài tập cần có ít nhất 1 test case. Không thể xóa hết!');
+    return;
+  }
+  button.closest('.testcase-card').remove();
+  updateTestcaseLabels();
+}
+
+function updateTestcaseLabels() {
+  const container = document.getElementById('tc-list-container');
+  const cards = container.querySelectorAll('.testcase-card');
+  cards.forEach((card, idx) => {
+    const label = card.querySelector('.tc-number-label');
+    if (label) label.textContent = `Test Case #${idx + 1}`;
+  });
+  document.getElementById('tc-total-count-label').textContent = `Tổng cộng: ${cards.length} test case`;
+}
+
+async function saveTestcases() {
+  const container = document.getElementById('tc-list-container');
+  const cards = container.querySelectorAll('.testcase-card');
+  if (cards.length === 0) {
+    alert('Cần có ít nhất 1 test case.');
+    return;
+  }
+
+  const testCasesList = [];
+  for (let i = 0; i < cards.length; i++) {
+    const card = cards[i];
+    const inputData = card.querySelector('.tc-input-data').value;
+    const expectedOutput = card.querySelector('.tc-expected-output').value;
+    const isSample = card.querySelector('.tc-sample-check').checked ? 1 : 0;
+    const isHidden = card.querySelector('.tc-hidden-check').checked ? 1 : 0;
+    const points = parseInt(card.querySelector('.tc-points-input').value) || 10;
+
+    testCasesList.push({
+      input_data: inputData,
+      expected_output: expectedOutput,
+      is_sample: isSample,
+      is_hidden: isHidden,
+      points: points
+    });
+  }
+
+  const changelog = document.getElementById('tc-changelog-input').value.trim();
+  const saveBtn = document.getElementById('btn-save-testcases');
+  const statusEl = document.getElementById('tc-save-status');
+
+  saveBtn.disabled = true;
+  saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>Đang lưu test cases...';
+  statusEl.innerHTML = '';
+
+  try {
+    const res = await fetch('/BaiTapLon/api/version_rejudge.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'save_testcases',
+        problem_id: currentTcProblemId,
+        changelog: changelog,
+        test_cases: testCasesList
+      })
+    });
+
+    const data = await res.json();
+    saveBtn.disabled = false;
+    saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-1"></i><span>Lưu Bộ Test Cases</span>';
+
+    if (!res.ok || !data.success) {
+      statusEl.innerHTML = `<span class="text-rose-400 font-semibold"><i class="fa-solid fa-triangle-exclamation mr-1"></i>${escapeHtml(data.error || 'Lỗi khi lưu test case.')}</span>`;
+      return;
+    }
+
+    // Thành công
+    statusEl.innerHTML = `<span class="text-emerald-400 font-semibold"><i class="fa-solid fa-circle-check mr-1"></i>${escapeHtml(data.message)}</span>`;
+
+    if (data.mode === 'new_version_rejudge' && data.rejudged_count > 0) {
+      setTimeout(() => {
+        if (confirm(`Đã phát hành phiên bản mới v${data.version_number} và xếp hàng chấm lại ${data.rejudged_count} bài nộp!\n\nBạn có muốn mở ngay trang Bảng Đối Chiếu (Side-by-Side Comparison) để theo dõi kết quả chấm lại không?`)) {
+          window.location.href = `/BaiTapLon/rejudge_compare.php?problem_id=${currentTcProblemId}`;
+        } else {
+          location.reload();
+        }
+      }, 800);
+    } else {
+      setTimeout(() => {
+        location.reload();
+      }, 1000);
+    }
+
+  } catch (err) {
+    saveBtn.disabled = false;
+    saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-1"></i><span>Lưu Bộ Test Cases</span>';
+    statusEl.innerHTML = `<span class="text-rose-400 font-semibold"><i class="fa-solid fa-triangle-exclamation mr-1"></i>Lỗi kết nối: ${escapeHtml(err.message)}</span>`;
+  }
 }
 </script>
 
