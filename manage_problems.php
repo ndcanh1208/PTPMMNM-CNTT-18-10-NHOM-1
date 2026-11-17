@@ -265,6 +265,9 @@ require_once __DIR__ . '/includes/sidebar.php';
           <tr class="bg-white/5 text-[11px] uppercase tracking-wider text-slate-400 font-bold border-b border-white/10">
             <th class="py-4 px-6">Slug</th>
             <th class="py-4 px-6">Tiêu đề & Giới hạn</th>
+            <?php if (Auth::isAdmin()): ?>
+              <th class="py-4 px-6">Người tạo</th>
+            <?php endif; ?>
             <th class="py-4 px-6 text-center">Chủ đề</th>
             <th class="py-4 px-6 text-center">Độ khó</th>
             <th class="py-4 px-6 text-center">Phiên bản</th>
@@ -276,7 +279,7 @@ require_once __DIR__ . '/includes/sidebar.php';
         <tbody class="divide-y divide-white/5 text-sm">
           <?php if (empty($problems)): ?>
             <tr>
-              <td colspan="8" class="py-12 text-center text-slate-500">
+              <td colspan="<?= Auth::isAdmin() ? 9 : 8 ?>" class="py-12 text-center text-slate-500">
                 <i class="fa-solid fa-box-open text-4xl mb-3 block"></i>
                 Chưa có bài tập nào. Hãy nhấn "Tạo bài tập mới" để bắt đầu!
               </td>
@@ -298,6 +301,23 @@ require_once __DIR__ . '/includes/sidebar.php';
                     <span><i class="fa-solid fa-memory text-slate-500 mr-1"></i><?= round(($p['memory_limit_kb'] ?? 262144) / 1024) ?> MB</span>
                   </div>
                 </td>
+                <?php if (Auth::isAdmin()): ?>
+                  <td class="py-4 px-6">
+                    <div class="flex items-center space-x-2.5">
+                      <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-600/20 to-blue-500/20 border border-cyan-500/30 text-cyan-300 font-bold flex items-center justify-center text-xs shrink-0 shadow-sm">
+                        <?= strtoupper(substr($p['creator_username'] ?? 'U', 0, 1)) ?>
+                      </div>
+                      <div class="truncate max-w-[150px]">
+                        <div class="text-xs font-semibold text-slate-200 truncate">
+                          <?= htmlspecialchars($p['creator_name'] ?: ($p['creator_username'] ?: 'Quản trị viên')) ?>
+                        </div>
+                        <div class="text-[10px] text-cyan-400 font-mono">
+                          @<?= htmlspecialchars($p['creator_username'] ?: 'admin') ?>
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                <?php endif; ?>
                 <td class="py-4 px-6 text-center text-slate-300 text-xs">
                   <?= htmlspecialchars($p['topic']) ?>
                 </td>

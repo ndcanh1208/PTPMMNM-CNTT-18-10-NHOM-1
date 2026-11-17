@@ -45,9 +45,11 @@ $whereSql = implode(' AND ', $whereClauses);
 
 $stmt = $pdo->prepare("
     SELECT p.id, p.slug, p.title, p.topic, p.difficulty, p.source_attribution,
-           pv.id as version_id, pv.version_number, pv.time_limit_ms, pv.memory_limit_kb
+           pv.id as version_id, pv.version_number, pv.time_limit_ms, pv.memory_limit_kb,
+           u.username as creator_username, u.full_name as creator_name
     FROM problems p
     JOIN problem_versions pv ON p.current_version_id = pv.id
+    LEFT JOIN users u ON p.created_by = u.id
     WHERE {$whereSql}
     ORDER BY p.id ASC
 ");
@@ -216,8 +218,14 @@ require_once __DIR__ . '/includes/sidebar.php';
                     <a href="/BaiTapLon/solve.php?id=<?= $p['id'] ?>" class="font-bold text-white group-hover:text-cyan-400 transition-colors text-sm">
                       <?= Security::escape($p['title']) ?>
                     </a>
-                    <div class="text-[11px] text-slate-500 font-mono mt-0.5">
-                      <?= Security::escape($p['slug']) ?>
+                    <div class="text-[11px] text-slate-500 font-mono mt-0.5 flex items-center space-x-2">
+                      <span><?= Security::escape($p['slug']) ?></span>
+                      <?php if (Auth::isAdmin() && !empty($p['creator_username'])): ?>
+                        <span class="inline-flex items-center space-x-1 text-[10px] text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20 font-mono" title="Người tạo bài tập">
+                          <i class="fa-solid fa-user-pen text-[9px]"></i>
+                          <span>@<?= Security::escape($p['creator_username']) ?></span>
+                        </span>
+                      <?php endif; ?>
                     </div>
                   </td>
 
