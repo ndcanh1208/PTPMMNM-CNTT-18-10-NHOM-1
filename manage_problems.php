@@ -74,19 +74,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $updateProb = $pdo->prepare("UPDATE problems SET current_version_id = ? WHERE id = ?");
                     $updateProb->execute([$versionId, $problemId]);
 
-                    // 4. Thêm test case ví dụ mẫu nếu có
-                    $sampleInput = (string)($_POST['sample_input'] ?? '');
-                    $sampleOutput = (string)($_POST['sample_output'] ?? '');
-                    if ($sampleInput !== '' || $sampleOutput !== '') {
+                    // 4. Thêm các test case ban đầu (Hỗ trợ nhiều test cases)
+                    $rawTestCases = $_POST['test_cases'] ?? [];
+                    $validTestCases = [];
+
+                    if (is_array($rawTestCases) && !empty($rawTestCases)) {
+                        foreach ($rawTestCases as $tc) {
+                            $in = (string)($tc['input_data'] ?? '');
+                            $out = (string)($tc['expected_output'] ?? '');
+                            if ($in !== '' || $out !== '') {
+                                $validTestCases[] = [
+                                    'input'     => $in,
+                                    'output'    => $out,
+                                    'is_sample' => !empty($tc['is_sample']) ? 1 : 0,
+                                    'is_hidden' => !empty($tc['is_hidden']) ? 1 : 0,
+                                    'points'    => max(1, (int)($tc['points'] ?? 10))
+                                ];
+                            }
+                        }
+                    }
+
+                    // Tương thích ngược: kiểm tra sample_input / sample_output nếu mảng test_cases rỗng
+                    if (empty($validTestCases)) {
+                        $sampleInput = (string)($_POST['sample_input'] ?? '');
+                        $sampleOutput = (string)($_POST['sample_output'] ?? '');
+                        if ($sampleInput !== '' || $sampleOutput !== '') {
+                            $validTestCases[] = [
+                                'input'     => $sampleInput,
+                                'output'    => $sampleOutput,
+                                'is_sample' => 1,
+                                'is_hidden' => 0,
+                                'points'    => 10
+                            ];
+                        }
+                    }
+
+                    if (!empty($validTestCases)) {
                         $insertTc = $pdo->prepare("
-                            INSERT INTO test_cases (problem_version_id, case_order, input_data, expected_output, is_sample, is_hidden, points)
-                            VALUES (?, 1, ?, ?, 1, 0, 10)
+                            INSERT INTO test_cases (problem_version_id, case_order, input_data, expected_output, is_sample, is_hidden, points, created_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
                         ");
-                        $insertTc->execute([$versionId, $sampleInput, $sampleOutput]);
+                        foreach ($validTestCases as $idx => $vtc) {
+                            $insertTc->execute([
+                                $versionId,
+                                $idx + 1,
+                                $vtc['input'],
+                                $vtc['output'],
+                                $vtc['is_sample'],
+                                $vtc['is_hidden'],
+                                $vtc['points']
+                            ]);
+                        }
                     }
 
                     $pdo->commit();
-                    $msgSuccess = "Tạo bài tập '{$slug} - {$title}' thành công!";
+                    $tcCountMsg = count($validTestCases) > 0 ? " kèm " . count($validTestCases) . " test case" : "";
+                    $msgSuccess = "Tạo bài tập '{$slug} - {$title}' thành công{$tcCountMsg}!";
                 } catch (Exception $e) {
                     if ($pdo->inTransaction()) {
                         $pdo->rollBack();
@@ -401,8 +444,8 @@ require_once __DIR__ . '/includes/sidebar.php';
 
 <!-- MODAL 1: TẠO BÀI TẬP MỚI -->
 <div id="createModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm hidden p-4 overflow-y-auto">
-  <div class="glass-panel w-full max-w-2xl rounded-2xl border border-white/20 p-6 my-8 space-y-6 shadow-2xl">
-    <div class="flex items-center justify-between border-b border-white/10 pb-4">
+  <div class="glass-panel w-full max-w-3xl rounded-2xl border border-white/20 p-6 my-8 space-y-5 shadow-2xl flex flex-col max-h-[92vh]">
+    <div class="flex items-center justify-between border-b border-white/10 pb-4 shrink-0">
       <h3 class="text-xl font-bold text-white flex items-center space-x-2">
         <i class="fa-solid fa-plus-circle text-cyan-400"></i>
         <span>Tạo Bài Tập Mới</span>
@@ -412,7 +455,7 @@ require_once __DIR__ . '/includes/sidebar.php';
       </button>
     </div>
 
-    <form method="POST" action="" class="space-y-4">
+    <form method="POST" action="" class="space-y-4 overflow-y-auto pr-1 flex-1">
       <input type="hidden" name="action" value="create_problem">
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -477,21 +520,28 @@ require_once __DIR__ . '/includes/sidebar.php';
         <textarea name="constraints" rows="2" placeholder="VD: 1 <= N <= 10^5, -10^9 <= A[i] <= 10^9..." class="w-full p-2.5 rounded-xl bg-black/40 border border-white/15 text-white text-xs font-mono"></textarea>
       </div>
 
+      <!-- BỘ TEST CASES BAN ĐẦU (HỖ TRỢ NHIỀU TEST CASE) -->
       <div class="p-4 rounded-xl bg-cyan-500/5 border border-cyan-500/20 space-y-3">
-        <h4 class="text-xs uppercase font-bold text-cyan-400">Test Case Mẫu Ban Đầu (Công khai)</h4>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div class="flex items-center justify-between">
           <div>
-            <label class="block text-[11px] text-slate-400 mb-1 font-mono">Dữ liệu Vào (Sample Input)</label>
-            <textarea name="sample_input" rows="2" placeholder="2 3" class="w-full p-2.5 rounded-lg bg-black/50 border border-white/10 text-white font-mono text-xs focus:outline-none focus:border-cyan-400"></textarea>
+            <h4 class="text-xs uppercase font-bold text-cyan-400 flex items-center gap-2">
+              <i class="fa-solid fa-vial"></i>
+              <span>Bộ Test Cases Khởi Tạo</span>
+            </h4>
+            <p class="text-[11px] text-slate-400 mt-0.5">Thêm các test case công khai (mẫu) và chấm kín (bảo mật khi chấm).</p>
           </div>
-          <div>
-            <label class="block text-[11px] text-slate-400 mb-1 font-mono">Dữ liệu Ra (Sample Output)</label>
-            <textarea name="sample_output" rows="2" placeholder="5" class="w-full p-2.5 rounded-lg bg-black/50 border border-white/10 text-white font-mono text-xs focus:outline-none focus:border-cyan-400"></textarea>
-          </div>
+          <button type="button" onclick="addCreateTestcaseRow()" class="px-3 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 hover:text-cyan-300 border border-cyan-500/30 text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer">
+            <i class="fa-solid fa-plus text-[10px]"></i>
+            <span>Thêm Test Case</span>
+          </button>
+        </div>
+
+        <div id="create-tc-list" class="space-y-3">
+          <!-- Các test case được tạo tự động bởi JS -->
         </div>
       </div>
 
-      <div class="flex items-center justify-end space-x-3 pt-4 border-t border-white/10">
+      <div class="flex items-center justify-end space-x-3 pt-3 border-t border-white/10 shrink-0">
         <button type="button" onclick="closeModal('createModal')" class="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-sm font-semibold transition-colors">
           Hủy bỏ
         </button>
@@ -656,6 +706,13 @@ require_once __DIR__ . '/includes/sidebar.php';
 <script>
 function openModal(modalId) {
   document.getElementById(modalId).classList.remove('hidden');
+  if (modalId === 'createModal') {
+    const list = document.getElementById('create-tc-list');
+    if (list && list.children.length === 0) {
+      addCreateTestcaseRow({ is_sample: 1, is_hidden: 0, points: 10, input: '', output: '' });
+      addCreateTestcaseRow({ is_sample: 0, is_hidden: 1, points: 10, input: '', output: '' });
+    }
+  }
 }
 
 function closeModal(modalId) {
@@ -685,6 +742,91 @@ function openEditModal(problem) {
   document.getElementById('edit_constraints').value = problem.constraints || '';
   openModal('editModal');
 }
+
+// -------------------------------------------------------------
+// QUẢN LÝ TEST CASES KHI TẠO MỚI BÀI TẬP (createModal)
+// -------------------------------------------------------------
+let createTcCounter = 0;
+
+function addCreateTestcaseRow(data = null) {
+  const container = document.getElementById('create-tc-list');
+  if (!container) return;
+  const count = container.querySelectorAll('.create-tc-card').length;
+  const idx = createTcCounter++;
+
+  const isSampleChecked = data ? (data.is_sample ? 'checked' : '') : (count === 0 ? 'checked' : '');
+  const isHiddenChecked = data ? (data.is_hidden ? 'checked' : '') : (count === 0 ? '' : 'checked');
+  const points = data && data.points !== undefined ? data.points : 10;
+  const inputVal = data ? escapeHtml(data.input || '') : '';
+  const outputVal = data ? escapeHtml(data.output || '') : '';
+
+  const card = document.createElement('div');
+  card.className = 'create-tc-card p-3.5 rounded-xl bg-black/40 border border-white/10 space-y-2.5 hover:border-white/20 transition-all';
+  card.innerHTML = `
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/5 pb-2 gap-2">
+      <div class="flex items-center space-x-3 flex-wrap gap-y-1">
+        <span class="font-mono font-bold text-xs text-amber-400 create-tc-number">Test Case #${count + 1}</span>
+        <label class="flex items-center space-x-1.5 text-xs text-slate-300 cursor-pointer select-none">
+          <input type="checkbox" name="test_cases[${idx}][is_sample]" value="1" class="rounded bg-black/50 border-white/20 text-cyan-400 focus:ring-0" ${isSampleChecked}>
+          <span>Công khai (Sample)</span>
+        </label>
+        <label class="flex items-center space-x-1.5 text-xs text-slate-300 cursor-pointer select-none">
+          <input type="checkbox" name="test_cases[${idx}][is_hidden]" value="1" class="rounded bg-black/50 border-white/20 text-purple-400 focus:ring-0" ${isHiddenChecked}>
+          <span>Chấm kín (Hidden)</span>
+        </label>
+      </div>
+      <div class="flex items-center space-x-2.5 self-end sm:self-auto">
+        <div class="flex items-center space-x-1.5 text-xs">
+          <span class="text-slate-400">Điểm:</span>
+          <input type="number" min="1" max="100" name="test_cases[${idx}][points]" value="${points}" class="w-14 px-2 py-0.5 rounded bg-black/60 border border-white/15 text-white font-mono text-xs text-center focus:outline-none focus:border-cyan-400">
+        </div>
+        <button type="button" onclick="removeCreateTestcaseRow(this)" class="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs transition-colors cursor-pointer" title="Xóa test case">
+          <i class="fa-solid fa-trash-can"></i>
+        </button>
+      </div>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+      <div>
+        <label class="block text-[10px] font-mono text-slate-400 mb-1">Dữ liệu vào (Input)</label>
+        <textarea name="test_cases[${idx}][input_data]" rows="2" placeholder="Ví dụ: 2 3" class="w-full p-2 rounded-lg bg-black/50 border border-white/10 text-white font-mono text-xs focus:outline-none focus:border-cyan-400">${inputVal}</textarea>
+      </div>
+      <div>
+        <label class="block text-[10px] font-mono text-slate-400 mb-1">Dữ liệu ra mong đợi (Expected Output)</label>
+        <textarea name="test_cases[${idx}][expected_output]" rows="2" placeholder="Ví dụ: 5" class="w-full p-2 rounded-lg bg-black/50 border border-white/10 text-white font-mono text-xs focus:outline-none focus:border-cyan-400">${outputVal}</textarea>
+      </div>
+    </div>
+  `;
+  container.appendChild(card);
+  updateCreateTestcaseNumbers();
+}
+
+function removeCreateTestcaseRow(btn) {
+  const container = document.getElementById('create-tc-list');
+  if (container.querySelectorAll('.create-tc-card').length <= 1) {
+    alert('Cần có ít nhất 1 test case.');
+    return;
+  }
+  btn.closest('.create-tc-card').remove();
+  updateCreateTestcaseNumbers();
+}
+
+function updateCreateTestcaseNumbers() {
+  const container = document.getElementById('create-tc-list');
+  if (!container) return;
+  const cards = container.querySelectorAll('.create-tc-card');
+  cards.forEach((card, i) => {
+    const lbl = card.querySelector('.create-tc-number');
+    if (lbl) lbl.textContent = `Test Case #${i + 1}`;
+  });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  const container = document.getElementById('create-tc-list');
+  if (container && container.children.length === 0) {
+    addCreateTestcaseRow({ is_sample: 1, is_hidden: 0, points: 10, input: '', output: '' });
+    addCreateTestcaseRow({ is_sample: 0, is_hidden: 1, points: 10, input: '', output: '' });
+  }
+});
 
 // -------------------------------------------------------------
 // QUẢN LÝ & SỬA TEST CASES
