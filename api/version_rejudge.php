@@ -180,13 +180,28 @@ if ($action === 'save_testcases') {
             ");
 
             foreach ($testCases as $idx => $tc) {
+                $isSample = 0;
+                $isHidden = 1;
+                if (isset($tc['type'])) {
+                    if ($tc['type'] === 'sample') {
+                        $isSample = 1;
+                        $isHidden = 0;
+                    } else {
+                        $isSample = 0;
+                        $isHidden = 1;
+                    }
+                } else {
+                    $isSample = !empty($tc['is_sample']) ? 1 : 0;
+                    $isHidden = $isSample ? 0 : 1;
+                }
+
                 $tcInsertStmt->execute([
                     'pvid'   => $currentVersionId,
                     'corder' => $idx + 1,
                     'input'  => (string)($tc['input_data'] ?? ''),
                     'output' => (string)($tc['expected_output'] ?? ''),
-                    'sample' => !empty($tc['is_sample']) ? 1 : 0,
-                    'hidden' => !empty($tc['is_hidden']) ? 1 : 0,
+                    'sample' => $isSample,
+                    'hidden' => $isHidden,
                     'points' => max(1, (int)($tc['points'] ?? 10))
                 ]);
             }
@@ -272,13 +287,28 @@ if ($action === 'save_testcases') {
                 VALUES (:pvid, :corder, :input, :output, :sample, :hidden, :points, NOW())
             ");
             foreach ($testCases as $idx => $tc) {
+                $isSample = 0;
+                $isHidden = 1;
+                if (isset($tc['type'])) {
+                    if ($tc['type'] === 'sample') {
+                        $isSample = 1;
+                        $isHidden = 0;
+                    } else {
+                        $isSample = 0;
+                        $isHidden = 1;
+                    }
+                } else {
+                    $isSample = !empty($tc['is_sample']) ? 1 : 0;
+                    $isHidden = $isSample ? 0 : 1;
+                }
+
                 $tcInsertStmt->execute([
                     'pvid'   => $newVersionId,
                     'corder' => $idx + 1,
                     'input'  => (string)($tc['input_data'] ?? ''),
                     'output' => (string)($tc['expected_output'] ?? ''),
-                    'sample' => !empty($tc['is_sample']) ? 1 : 0,
-                    'hidden' => !empty($tc['is_hidden']) ? 1 : 0,
+                    'sample' => $isSample,
+                    'hidden' => $isHidden,
                     'points' => max(1, (int)($tc['points'] ?? 10))
                 ]);
             }
@@ -406,13 +436,28 @@ if ($action === 'create_version') {
 
         if (!empty($testCases)) {
             foreach ($testCases as $idx => $tc) {
+                $isSample = 0;
+                $isHidden = 1;
+                if (isset($tc['type'])) {
+                    if ($tc['type'] === 'sample') {
+                        $isSample = 1;
+                        $isHidden = 0;
+                    } else {
+                        $isSample = 0;
+                        $isHidden = 1;
+                    }
+                } else {
+                    $isSample = !empty($tc['is_sample']) ? 1 : 0;
+                    $isHidden = $isSample ? 0 : 1;
+                }
+
                 $tcInsertStmt->execute([
                     'pvid'   => $newVersionId,
                     'corder' => $tc['case_order'] ?? ($idx + 1),
                     'input'  => $tc['input_data'] ?? '',
                     'output' => $tc['expected_output'] ?? '',
-                    'sample' => !empty($tc['is_sample']) ? 1 : 0,
-                    'hidden' => !empty($tc['is_hidden']) ? 1 : 0,
+                    'sample' => $isSample,
+                    'hidden' => $isHidden,
                     'points' => (int)($tc['points'] ?? 10)
                 ]);
             }

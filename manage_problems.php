@@ -83,11 +83,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                             $in = (string)($tc['input_data'] ?? '');
                             $out = (string)($tc['expected_output'] ?? '');
                             if ($in !== '' || $out !== '') {
+                                $isSample = 0;
+                                $isHidden = 1;
+                                if (isset($tc['type'])) {
+                                    if ($tc['type'] === 'sample') {
+                                        $isSample = 1;
+                                        $isHidden = 0;
+                                    } else {
+                                        $isSample = 0;
+                                        $isHidden = 1;
+                                    }
+                                } else {
+                                    $isSample = !empty($tc['is_sample']) ? 1 : 0;
+                                    $isHidden = $isSample ? 0 : 1;
+                                }
+
                                 $validTestCases[] = [
                                     'input'     => $in,
                                     'output'    => $out,
-                                    'is_sample' => !empty($tc['is_sample']) ? 1 : 0,
-                                    'is_hidden' => !empty($tc['is_hidden']) ? 1 : 0,
+                                    'is_sample' => $isSample,
+                                    'is_hidden' => $isHidden,
                                     'points'    => max(1, (int)($tc['points'] ?? 10))
                                 ];
                             }
@@ -754,8 +769,8 @@ function addCreateTestcaseRow(data = null) {
   const count = container.querySelectorAll('.create-tc-card').length;
   const idx = createTcCounter++;
 
-  const isSampleChecked = data ? (data.is_sample ? 'checked' : '') : (count === 0 ? 'checked' : '');
-  const isHiddenChecked = data ? (data.is_hidden ? 'checked' : '') : (count === 0 ? '' : 'checked');
+  const isSampleChecked = data ? (data.is_sample == 1 ? 'checked' : '') : (count === 0 ? 'checked' : '');
+  const isHiddenChecked = isSampleChecked ? '' : 'checked';
   const points = data && data.points !== undefined ? data.points : 10;
   const inputVal = data ? escapeHtml(data.input || '') : '';
   const outputVal = data ? escapeHtml(data.output || '') : '';
@@ -767,12 +782,12 @@ function addCreateTestcaseRow(data = null) {
       <div class="flex items-center space-x-3 flex-wrap gap-y-1">
         <span class="font-mono font-bold text-xs text-amber-400 create-tc-number">Test Case #${count + 1}</span>
         <label class="flex items-center space-x-1.5 text-xs text-slate-300 cursor-pointer select-none">
-          <input type="checkbox" name="test_cases[${idx}][is_sample]" value="1" class="rounded bg-black/50 border-white/20 text-cyan-400 focus:ring-0" ${isSampleChecked}>
-          <span>Công khai (Sample)</span>
+          <input type="radio" name="test_cases[${idx}][type]" value="sample" class="accent-cyan-400 focus:ring-0 cursor-pointer" ${isSampleChecked}>
+          <span class="text-cyan-300 font-medium">Công khai (Sample)</span>
         </label>
         <label class="flex items-center space-x-1.5 text-xs text-slate-300 cursor-pointer select-none">
-          <input type="checkbox" name="test_cases[${idx}][is_hidden]" value="1" class="rounded bg-black/50 border-white/20 text-purple-400 focus:ring-0" ${isHiddenChecked}>
-          <span>Chấm kín (Hidden)</span>
+          <input type="radio" name="test_cases[${idx}][type]" value="hidden" class="accent-purple-400 focus:ring-0 cursor-pointer" ${isHiddenChecked}>
+          <span class="text-purple-300 font-medium">Chấm kín (Hidden)</span>
         </label>
       </div>
       <div class="flex items-center space-x-2.5 self-end sm:self-auto">
@@ -933,25 +948,28 @@ async function openTestcasesModal(problemId, problemTitle, totalSubmissions, cur
   }
 }
 
+let tcModalCardCounter = 0;
+
 function createTestcaseCardElement(tc, idx) {
   const card = document.createElement('div');
   card.className = 'testcase-card p-4 rounded-xl bg-white/[0.03] border border-white/10 space-y-3 hover:border-white/20 transition-all';
   
-  const isSampleChecked = tc.is_sample == 1 ? 'checked' : '';
-  const isHiddenChecked = tc.is_hidden == 1 ? 'checked' : '';
+  const isSampleChecked = (tc.is_sample == 1) ? 'checked' : '';
+  const isHiddenChecked = isSampleChecked ? '' : 'checked';
   const points = tc.points !== undefined ? tc.points : 10;
+  const groupName = 'tc_modal_vis_' + (tcModalCardCounter++);
 
   card.innerHTML = `
     <div class="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/5 pb-2.5 gap-2">
       <div class="flex items-center space-x-3 flex-wrap gap-y-1">
         <span class="font-mono font-bold text-xs text-amber-400 tc-number-label">Test Case #${idx + 1}</span>
         <label class="flex items-center space-x-1.5 text-xs text-slate-300 cursor-pointer select-none">
-          <input type="checkbox" class="tc-sample-check rounded bg-black/40 border-white/20 text-cyan-400 focus:ring-0" ${isSampleChecked}>
-          <span>Công khai (Sample)</span>
+          <input type="radio" name="${groupName}" value="sample" class="tc-sample-radio accent-cyan-400 focus:ring-0 cursor-pointer" ${isSampleChecked}>
+          <span class="text-cyan-300 font-medium">Công khai (Sample)</span>
         </label>
         <label class="flex items-center space-x-1.5 text-xs text-slate-300 cursor-pointer select-none">
-          <input type="checkbox" class="tc-hidden-check rounded bg-black/40 border-white/20 text-purple-400 focus:ring-0" ${isHiddenChecked}>
-          <span>Chấm kín (Hidden)</span>
+          <input type="radio" name="${groupName}" value="hidden" class="tc-hidden-radio accent-purple-400 focus:ring-0 cursor-pointer" ${isHiddenChecked}>
+          <span class="text-purple-300 font-medium">Chấm kín (Hidden)</span>
         </label>
       </div>
       <div class="flex items-center space-x-3 self-end sm:self-auto">
@@ -1033,8 +1051,8 @@ async function saveTestcases() {
     const card = cards[i];
     const inputData = card.querySelector('.tc-input-data').value;
     const expectedOutput = card.querySelector('.tc-expected-output').value;
-    const isSample = card.querySelector('.tc-sample-check').checked ? 1 : 0;
-    const isHidden = card.querySelector('.tc-hidden-check').checked ? 1 : 0;
+    const isSample = card.querySelector('.tc-sample-radio').checked ? 1 : 0;
+    const isHidden = isSample ? 0 : 1;
     const points = parseInt(card.querySelector('.tc-points-input').value) || 10;
 
     testCasesList.push({
