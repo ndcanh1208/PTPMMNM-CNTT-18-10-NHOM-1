@@ -59,13 +59,13 @@ $isWorkerActive = true;
 
       <?php if (Auth::isInstructor() || Auth::isAdmin()): ?>
         <div class="pt-4 pb-2 px-4 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-          Phân hệ Giảng viên
+          <?= Auth::isAdmin() ? 'Phân hệ Quản trị viên' : 'Phân hệ Giảng viên' ?>
         </div>
 
         <!-- Quản lý bài tập & Phiên bản -->
         <a href="/BaiTapLon/manage_problems.php" class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 <?= $currentScript === 'manage_problems.php' ? 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 shadow-[0_0_12px_rgba(0,255,255,0.2)]' : 'text-slate-400 hover:text-slate-100 hover:bg-white/5' ?>">
           <i class="fa-solid fa-sliders w-5 text-center text-base"></i>
-          <span>Quản lý Đề & Bộ Test</span>
+          <span>Quản lý & Tạo Đề bài</span>
         </a>
 
         <!-- Chấm lại & Đối chiếu (Tình huống 2) -->

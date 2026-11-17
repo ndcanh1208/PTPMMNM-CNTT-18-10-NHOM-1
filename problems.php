@@ -97,8 +97,16 @@ require_once __DIR__ . '/includes/sidebar.php';
         </p>
       </div>
 
-      <div class="text-xs text-slate-400 font-mono">
-        Tìm thấy <span class="text-cyan-400 font-bold"><?= count($problems) ?></span> bài tập
+      <div class="flex items-center space-x-3">
+        <div class="text-xs text-slate-400 font-mono">
+          Tìm thấy <span class="text-cyan-400 font-bold"><?= count($problems) ?></span> bài tập
+        </div>
+        <?php if (Auth::isInstructor() || Auth::isAdmin()): ?>
+          <a href="/BaiTapLon/manage_problems.php" class="btn-cyan px-4 py-2 rounded-xl text-black font-bold text-xs flex items-center space-x-1.5 shadow-[0_0_15px_rgba(0,255,255,0.4)] hover:scale-105 transition-all">
+            <i class="fa-solid fa-plus text-black"></i>
+            <span>Tạo bài tập mới</span>
+          </a>
+        <?php endif; ?>
       </div>
     </div>
 

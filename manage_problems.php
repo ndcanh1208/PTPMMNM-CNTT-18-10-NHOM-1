@@ -192,8 +192,8 @@ require_once __DIR__ . '/includes/sidebar.php';
       </p>
     </div>
     <div>
-      <button onclick="openModal('createModal')" class="neon-button px-5 py-2.5 rounded-xl text-black font-bold text-sm flex items-center space-x-2">
-        <i class="fa-solid fa-plus"></i>
+      <button type="button" onclick="openModal('createModal')" class="btn-cyan px-5 py-2.5 rounded-xl text-black font-black text-sm flex items-center space-x-2 shadow-[0_0_20px_rgba(0,255,255,0.45)] hover:scale-105 transition-all cursor-pointer">
+        <i class="fa-solid fa-plus text-black font-bold"></i>
         <span>Tạo bài tập mới</span>
       </button>
     </div>
@@ -460,7 +460,7 @@ require_once __DIR__ . '/includes/sidebar.php';
         <button type="button" onclick="closeModal('createModal')" class="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-sm font-semibold transition-colors">
           Hủy bỏ
         </button>
-        <button type="submit" class="neon-button px-6 py-2.5 rounded-xl text-black font-bold text-sm">
+        <button type="submit" class="btn-cyan px-6 py-2.5 rounded-xl text-black font-bold text-sm cursor-pointer shadow-[0_0_15px_rgba(0,255,255,0.4)]">
           Lưu & Khởi tạo v1
         </button>
       </div>
@@ -540,7 +540,7 @@ require_once __DIR__ . '/includes/sidebar.php';
         <button type="button" onclick="closeModal('editModal')" class="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-sm font-semibold transition-colors">
           Hủy bỏ
         </button>
-        <button type="submit" class="neon-button px-6 py-2.5 rounded-xl text-black font-bold text-sm">
+        <button type="submit" class="btn-cyan px-6 py-2.5 rounded-xl text-black font-bold text-sm cursor-pointer shadow-[0_0_15px_rgba(0,255,255,0.4)]">
           Cập nhật thông tin
         </button>
       </div>
@@ -556,6 +556,13 @@ function openModal(modalId) {
 function closeModal(modalId) {
   document.getElementById(modalId).classList.add('hidden');
 }
+
+window.addEventListener('click', function(e) {
+  const createModal = document.getElementById('createModal');
+  const editModal = document.getElementById('editModal');
+  if (e.target === createModal) closeModal('createModal');
+  if (e.target === editModal) closeModal('editModal');
+});
 
 function openEditModal(problem) {
   document.getElementById('edit_problem_id').value = problem.id;

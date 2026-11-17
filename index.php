@@ -85,6 +85,12 @@ require_once __DIR__ . '/includes/sidebar.php';
             <i class="fa-solid fa-play text-xs"></i>
             <span>Bắt đầu Luyện tập</span>
           </a>
+          <?php if (Auth::isInstructor() || Auth::isAdmin()): ?>
+            <a href="/BaiTapLon/manage_problems.php" class="btn-cyan flex items-center space-x-2 text-sm font-bold text-black shadow-[0_0_15px_rgba(0,255,255,0.4)]">
+              <i class="fa-solid fa-plus text-black"></i>
+              <span>Tạo đề bài mới</span>
+            </a>
+          <?php endif; ?>
           <?php if (!$currentUser): ?>
             <a href="/BaiTapLon/login.php" class="btn-glass flex items-center space-x-2 text-sm font-semibold">
               <i class="fa-solid fa-arrow-right-to-bracket text-xs"></i>
