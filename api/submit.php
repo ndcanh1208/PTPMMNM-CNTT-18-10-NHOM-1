@@ -112,7 +112,7 @@ try {
     $stmtProb = $pdo->prepare("
         SELECT current_version_id 
         FROM problems 
-        WHERE id = :id AND is_public = 1
+        WHERE id = :id AND is_public = 1 AND deleted_at IS NULL
     ");
     $stmtProb->execute(['id' => $problemId]);
     $versionId = $stmtProb->fetchColumn();
@@ -121,7 +121,7 @@ try {
         http_response_code(404);
         echo json_encode([
             'success' => false,
-            'error'   => 'Bài tập không tồn tại hoặc chưa được phát hành phiên bản bộ dữ liệu.'
+            'error'   => 'Bài tập không tồn tại, đã bị xóa hoặc chưa được phát hành phiên bản bộ dữ liệu.'
         ], JSON_UNESCAPED_UNICODE);
         exit;
     }

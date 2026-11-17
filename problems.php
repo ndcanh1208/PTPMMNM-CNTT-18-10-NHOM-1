@@ -21,7 +21,7 @@ $searchKeyword    = trim((string)($_GET['q'] ?? ''));
 $statusFilter     = trim((string)($_GET['status'] ?? ''));
 
 // Xây dựng truy vấn
-$whereClauses = ["p.is_public = 1"];
+$whereClauses = ["p.is_public = 1", "p.deleted_at IS NULL"];
 $params = [];
 
 if ($topicFilter !== '') {
@@ -57,7 +57,7 @@ $stmt->execute($params);
 $problems = $stmt->fetchAll();
 
 // Lấy danh sách các topic duy nhất để làm bộ lọc
-$allTopics = $pdo->query("SELECT DISTINCT topic FROM problems WHERE is_public = 1 ORDER BY topic ASC")->fetchAll(PDO::FETCH_COLUMN);
+$allTopics = $pdo->query("SELECT DISTINCT topic FROM problems WHERE is_public = 1 AND deleted_at IS NULL ORDER BY topic ASC")->fetchAll(PDO::FETCH_COLUMN);
 
 // Nếu user đã đăng nhập, lấy danh sách các problem_id đã AC
 $solvedMap = [];

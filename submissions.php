@@ -74,7 +74,7 @@ $subStmt = $pdo->prepare("
            s.language, s.final_verdict, s.pass_count, s.total_cases,
            s.execution_time_ms, s.memory_used_kb, s.submitted_at, s.latest_run_id,
            u.username, u.full_name,
-           p.title as problem_title, p.slug as problem_slug, pv.version_number
+           p.title as problem_title, p.slug as problem_slug, p.deleted_at as problem_deleted_at, pv.version_number
     FROM submissions s
     JOIN users u ON s.user_id = u.id
     JOIN problems p ON s.problem_id = p.id
@@ -87,7 +87,7 @@ $subStmt->execute($params);
 $submissions = $subStmt->fetchAll();
 
 // Danh sách bài tập cho bộ lọc
-$allProblems = $pdo->query("SELECT id, title FROM problems ORDER BY id ASC")->fetchAll();
+$allProblems = $pdo->query("SELECT id, title, deleted_at FROM problems ORDER BY id ASC")->fetchAll();
 
 $pageTitle = 'Lịch sử Nộp bài';
 require_once __DIR__ . '/includes/header.php';
@@ -122,7 +122,7 @@ require_once __DIR__ . '/includes/sidebar.php';
           <option value="">-- Tất cả Bài tập --</option>
           <?php foreach ($allProblems as $p): ?>
             <option value="<?= $p['id'] ?>" <?= $problemFilter === (int)$p['id'] ? 'selected' : '' ?>>
-              #<?= $p['id'] ?>. <?= Security::escape($p['title']) ?>
+              #<?= $p['id'] ?>. <?= Security::escape($p['title']) ?><?= !empty($p['deleted_at']) ? ' [Đã xóa]' : '' ?>
             </option>
           <?php endforeach; ?>
         </select>
@@ -212,6 +212,11 @@ require_once __DIR__ . '/includes/sidebar.php';
                     <a href="/BaiTapLon/solve.php?id=<?= $s['problem_id'] ?>" class="font-bold text-white hover:text-cyan-400 transition-colors">
                       <?= Security::escape($s['problem_title']) ?>
                     </a>
+                    <?php if (!empty($s['problem_deleted_at'])): ?>
+                      <span class="ml-1 px-1.5 py-0.5 rounded text-[10px] font-sans font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20" title="Bài tập này đã bị xóa hoặc tạm ẩn">
+                        Đã xóa
+                      </span>
+                    <?php endif; ?>
                     <span class="ml-1 px-1.5 py-0.2 rounded text-[10px] font-mono bg-white/5 text-cyan-300">
                       v<?= $s['version_number'] ?>.0
                     </span>

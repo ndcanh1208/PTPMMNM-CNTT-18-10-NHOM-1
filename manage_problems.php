@@ -198,11 +198,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
-// Truy vấn danh sách bài tập mà người dùng có quyền quản lý
-$params = [];
-$whereClause = "";
+// Bộ lọc theo tab: Đang hoạt động (active) hoặc Thùng rác (trash)
+$currentTab = ($_GET['tab'] ?? 'active') === 'trash' ? 'trash' : 'active';
+
+// Đếm số lượng bài đang hoạt động và số lượng bài trong thùng rác
+$countParams = [];
+$creatorCondition = "";
 if (!Auth::isAdmin()) {
-    $whereClause = "WHERE p.created_by = ?";
+    $creatorCondition = " AND p.created_by = ?";
+    $countParams[] = $currentUser['id'];
+}
+
+$activeCountStmt = $pdo->prepare("SELECT COUNT(*) FROM problems p WHERE p.deleted_at IS NULL {$creatorCondition}");
+$activeCountStmt->execute($countParams);
+$activeCount = (int)$activeCountStmt->fetchColumn();
+
+$trashCountStmt = $pdo->prepare("SELECT COUNT(*) FROM problems p WHERE p.deleted_at IS NOT NULL {$creatorCondition}");
+$trashCountStmt->execute($countParams);
+$trashCount = (int)$trashCountStmt->fetchColumn();
+
+// Truy vấn danh sách bài tập theo tab đang chọn
+$params = [];
+$whereClause = $currentTab === 'trash' ? "WHERE p.deleted_at IS NOT NULL" : "WHERE p.deleted_at IS NULL";
+if (!Auth::isAdmin()) {
+    $whereClause .= " AND p.created_by = ?";
     $params[] = $currentUser['id'];
 }
 
@@ -225,7 +244,7 @@ $query = "
     LEFT JOIN users u ON p.created_by = u.id
     LEFT JOIN problem_versions pv ON p.current_version_id = pv.id
     {$whereClause}
-    ORDER BY p.id ASC
+    ORDER BY " . ($currentTab === 'trash' ? "p.deleted_at DESC, p.id DESC" : "p.id ASC") . "
 ";
 $stmt = $pdo->prepare($query);
 $stmt->execute($params);
@@ -309,12 +328,23 @@ require_once __DIR__ . '/includes/sidebar.php';
 
   <!-- Danh sách bài tập -->
   <div class="glass-panel rounded-2xl border border-white/10 overflow-hidden shadow-2xl">
-    <div class="px-6 py-4 border-b border-white/10 flex items-center justify-between">
-      <h2 class="text-lg font-bold text-white flex items-center space-x-2">
-        <i class="fa-solid fa-list-check text-cyan-400"></i>
-        <span>Danh sách Bài tập</span>
-      </h2>
-      <span class="text-xs text-slate-400">Hiển thị <?= count($problems) ?> bài tập</span>
+    <!-- Tabs: Đang hoạt động vs Thùng rác -->
+    <div class="px-6 py-4 border-b border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/[0.02]">
+      <div class="flex items-center space-x-2">
+        <a href="?tab=active" class="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 <?= $currentTab === 'active' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm' : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-transparent' ?>">
+          <i class="fa-solid fa-list-check"></i>
+          <span>Đang hoạt động</span>
+          <span class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] <?= $currentTab === 'active' ? 'bg-cyan-400/20 text-cyan-200' : 'bg-white/10 text-slate-400' ?>"><?= $activeCount ?></span>
+        </a>
+        <a href="?tab=trash" class="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 <?= $currentTab === 'trash' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-sm' : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-transparent' ?>">
+          <i class="fa-solid fa-trash-can"></i>
+          <span>Thùng rác / Đã xóa</span>
+          <span class="ml-1 px-1.5 py-0.5 rounded-full text-[10px] <?= $currentTab === 'trash' ? 'bg-rose-400/20 text-rose-200' : 'bg-white/10 text-slate-400' ?>"><?= $trashCount ?></span>
+        </a>
+      </div>
+      <span class="text-xs text-slate-400">
+        <?= $currentTab === 'trash' ? 'Hiển thị ' . count($problems) . ' bài tập trong thùng rác (có thể khôi phục)' : 'Hiển thị ' . count($problems) . ' bài tập đang hoạt động' ?>
+      </span>
     </div>
 
     <div class="overflow-x-auto">
@@ -338,25 +368,38 @@ require_once __DIR__ . '/includes/sidebar.php';
           <?php if (empty($problems)): ?>
             <tr>
               <td colspan="<?= Auth::isAdmin() ? 9 : 8 ?>" class="py-12 text-center text-slate-500">
-                <i class="fa-solid fa-box-open text-4xl mb-3 block"></i>
-                Chưa có bài tập nào. Hãy nhấn "Tạo bài tập mới" để bắt đầu!
+                <?php if ($currentTab === 'trash'): ?>
+                  <i class="fa-solid fa-trash-can text-4xl mb-3 block text-slate-600"></i>
+                  Thùng rác trống! Không có bài tập nào bị xóa.
+                <?php else: ?>
+                  <i class="fa-solid fa-box-open text-4xl mb-3 block"></i>
+                  Chưa có bài tập nào. Hãy nhấn "Tạo bài tập mới" để bắt đầu!
+                <?php endif; ?>
               </td>
             </tr>
           <?php else: ?>
             <?php foreach ($problems as $p): ?>
-              <tr class="hover:bg-white/[0.02] transition-colors group">
-                <td class="py-4 px-6 font-mono font-bold text-cyan-400">
-                  <a href="/BaiTapLon/solve.php?slug=<?= urlencode($p['slug']) ?>" class="hover:underline">
-                    <?= htmlspecialchars($p['slug']) ?>
-                  </a>
+              <tr class="hover:bg-white/[0.02] transition-colors group" id="problem-row-<?= (int)$p['id'] ?>">
+                <td class="py-4 px-6 font-mono font-bold <?= $currentTab === 'trash' ? 'text-slate-400 line-through' : 'text-cyan-400' ?>">
+                  <?php if ($currentTab === 'trash'): ?>
+                    <span><?= htmlspecialchars($p['slug']) ?></span>
+                  <?php else: ?>
+                    <a href="/BaiTapLon/solve.php?slug=<?= urlencode($p['slug']) ?>" class="hover:underline">
+                      <?= htmlspecialchars($p['slug']) ?>
+                    </a>
+                  <?php endif; ?>
                 </td>
                 <td class="py-4 px-6">
-                  <div class="font-semibold text-white group-hover:text-cyan-300 transition-colors">
+                  <div class="font-semibold <?= $currentTab === 'trash' ? 'text-slate-300' : 'text-white group-hover:text-cyan-300' ?> transition-colors">
                     <?= htmlspecialchars($p['title']) ?>
                   </div>
                   <div class="text-xs text-slate-400 flex items-center space-x-3 mt-1">
-                    <span><i class="fa-regular fa-clock text-slate-500 mr-1"></i><?= $p['time_limit_ms'] ?? 1000 ?> ms</span>
-                    <span><i class="fa-solid fa-memory text-slate-500 mr-1"></i><?= round(($p['memory_limit_kb'] ?? 262144) / 1024) ?> MB</span>
+                    <?php if ($currentTab === 'trash' && !empty($p['deleted_at'])): ?>
+                      <span class="text-rose-400"><i class="fa-regular fa-calendar-xmark mr-1"></i>Đã xóa: <?= date('d/m/Y H:i', strtotime($p['deleted_at'])) ?></span>
+                    <?php else: ?>
+                      <span><i class="fa-regular fa-clock text-slate-500 mr-1"></i><?= $p['time_limit_ms'] ?? 1000 ?> ms</span>
+                      <span><i class="fa-solid fa-memory text-slate-500 mr-1"></i><?= round(($p['memory_limit_kb'] ?? 262144) / 1024) ?> MB</span>
+                    <?php endif; ?>
                   </div>
                 </td>
                 <?php if (Auth::isAdmin()): ?>
@@ -410,43 +453,84 @@ require_once __DIR__ . '/includes/sidebar.php';
                 <td class="py-4 px-6 text-center font-mono text-slate-300">
                   <?= $p['total_submissions'] ?>
                 </td>
-                <td class="py-4 px-6 text-right space-x-2">
-                  <!-- Sửa thông tin cơ bản -->
-                  <button 
-                    onclick='openEditModal(<?= json_encode($p, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)'
-                    class="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors"
-                    title="Chỉnh sửa thông tin bài"
-                  >
-                    <i class="fa-solid fa-pen-to-square"></i>
-                  </button>
+                <td class="py-4 px-6 text-right space-x-1.5 whitespace-nowrap">
+                  <?php if ($currentTab === 'trash'): ?>
+                    <!-- Khôi phục bài tập từ Thùng rác -->
+                    <button 
+                      type="button"
+                      onclick='restoreProblem(<?= (int)$p['id'] ?>, <?= htmlspecialchars(json_encode($p['title']), ENT_QUOTES, 'UTF-8') ?>)'
+                      class="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 border border-emerald-500/30 text-xs font-semibold inline-flex items-center space-x-1.5 transition-colors cursor-pointer"
+                      title="Khôi phục bài tập trở lại danh sách hoạt động"
+                    >
+                      <i class="fa-solid fa-rotate-left"></i>
+                      <span>Khôi phục</span>
+                    </button>
 
-                  <!-- Sửa & Quản lý Test Cases -->
-                  <button 
-                    type="button"
-                    onclick='openTestcasesModal(<?= $p['id'] ?>, <?= htmlspecialchars(json_encode($p['title']), ENT_QUOTES, 'UTF-8') ?>, <?= (int)$p['total_submissions'] ?>, <?= (int)($p['current_version_number'] ?? 1) ?>)'
-                    class="p-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 hover:text-amber-300 border border-amber-500/30 transition-colors inline-block cursor-pointer"
-                    title="Xem, Thêm & Sửa Bộ Test Cases"
-                  >
-                    <i class="fa-solid fa-vial"></i>
-                  </button>
+                    <?php if ((int)$p['total_submissions'] === 0): ?>
+                      <!-- Xóa vĩnh viễn (Chỉ hiện khi 0 lượt nộp) -->
+                      <button 
+                        type="button"
+                        onclick='openDeleteModal(<?= (int)$p['id'] ?>, <?= htmlspecialchars(json_encode($p['title']), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($p['slug']), ENT_QUOTES, 'UTF-8') ?>, 0, true)'
+                        class="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/30 text-xs font-semibold inline-flex items-center space-x-1.5 transition-colors cursor-pointer"
+                        title="Xóa vĩnh viễn khỏi cơ sở dữ liệu (0 lượt nộp)"
+                      >
+                        <i class="fa-solid fa-fire"></i>
+                        <span>Xóa vĩnh viễn</span>
+                      </button>
+                    <?php else: ?>
+                      <span class="px-2.5 py-1.5 rounded-lg bg-white/5 text-slate-500 border border-white/10 text-[11px] inline-flex items-center space-x-1 cursor-not-allowed" title="Bài tập có <?= (int)$p['total_submissions'] ?> bài nộp của học viên nên không cho phép xóa vĩnh viễn để bảo vệ dữ liệu học tập">
+                        <i class="fa-solid fa-lock text-[10px]"></i>
+                        <span>Bảo lưu dữ liệu</span>
+                      </span>
+                    <?php endif; ?>
+                  <?php else: ?>
+                    <!-- Sửa thông tin cơ bản -->
+                    <button 
+                      onclick='openEditModal(<?= json_encode($p, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)'
+                      class="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors cursor-pointer"
+                      title="Chỉnh sửa thông tin bài"
+                    >
+                      <i class="fa-solid fa-pen-to-square"></i>
+                    </button>
 
-                  <!-- Tạo phiên bản mới / Quản lý testcase -->
-                  <a 
-                    href="/BaiTapLon/rejudge_compare.php?problem_id=<?= $p['id'] ?>"
-                    class="p-2 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 hover:text-cyan-300 border border-cyan-500/30 transition-colors inline-block"
-                    title="Tạo phiên bản mới & Chấm lại đối chiếu"
-                  >
-                    <i class="fa-solid fa-code-compare"></i>
-                  </a>
+                    <!-- Sửa & Quản lý Test Cases -->
+                    <button 
+                      type="button"
+                      onclick='openTestcasesModal(<?= $p['id'] ?>, <?= htmlspecialchars(json_encode($p['title']), ENT_QUOTES, 'UTF-8') ?>, <?= (int)$p['total_submissions'] ?>, <?= (int)($p['current_version_number'] ?? 1) ?>)'
+                      class="p-2 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 hover:text-amber-300 border border-amber-500/30 transition-colors inline-block cursor-pointer"
+                      title="Xem, Thêm & Sửa Bộ Test Cases"
+                    >
+                      <i class="fa-solid fa-vial"></i>
+                    </button>
 
-                  <!-- Thử giải bài -->
-                  <a 
-                    href="/BaiTapLon/solve.php?id=<?= $p['id'] ?>"
-                    class="p-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 border border-emerald-500/30 transition-colors inline-block"
-                    title="Mở Workspace giải bài"
-                  >
-                    <i class="fa-solid fa-play"></i>
-                  </a>
+                    <!-- Tạo phiên bản mới / Quản lý testcase -->
+                    <a 
+                      href="/BaiTapLon/rejudge_compare.php?problem_id=<?= $p['id'] ?>"
+                      class="p-2 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 hover:text-cyan-300 border border-cyan-500/30 transition-colors inline-block"
+                      title="Tạo phiên bản mới & Chấm lại đối chiếu"
+                    >
+                      <i class="fa-solid fa-code-compare"></i>
+                    </a>
+
+                    <!-- Thử giải bài -->
+                    <a 
+                      href="/BaiTapLon/solve.php?id=<?= $p['id'] ?>"
+                      class="p-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 border border-emerald-500/30 transition-colors inline-block"
+                      title="Mở Workspace giải bài"
+                    >
+                      <i class="fa-solid fa-play"></i>
+                    </a>
+
+                    <!-- Xóa bài tập -->
+                    <button 
+                      type="button"
+                      onclick='openDeleteModal(<?= (int)$p['id'] ?>, <?= htmlspecialchars(json_encode($p['title']), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($p['slug']), ENT_QUOTES, 'UTF-8') ?>, <?= (int)$p['total_submissions'] ?>, false)'
+                      class="p-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 border border-rose-500/30 transition-colors inline-block cursor-pointer"
+                      title="Xóa bài tập"
+                    >
+                      <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                  <?php endif; ?>
                 </td>
               </tr>
             <?php endforeach; ?>
@@ -886,6 +970,56 @@ require_once __DIR__ . '/includes/sidebar.php';
   </div>
 </div>
 
+<!-- MODAL 5: XÁC NHẬN XÓA BÀI TẬP (SMART DELETE: SOFT & HARD DELETE) -->
+<div id="deleteProblemModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm hidden p-4 overflow-y-auto">
+  <div class="glass-panel w-full max-w-lg rounded-2xl border border-white/20 p-6 my-8 space-y-5 shadow-2xl flex flex-col">
+    <!-- Header -->
+    <div class="flex items-center justify-between border-b border-white/10 pb-4 shrink-0">
+      <div class="flex items-center space-x-3">
+        <div id="del-modal-icon" class="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-400 flex items-center justify-center text-lg shadow-sm">
+          <i class="fa-solid fa-trash-can"></i>
+        </div>
+        <div>
+          <h3 id="del-modal-title" class="text-lg font-bold text-white">Xác Nhận Xóa Bài Tập</h3>
+          <p id="del-modal-subtitle" class="text-xs text-slate-400">Thao tác an toàn theo quy chuẩn Online Judge</p>
+        </div>
+      </div>
+      <button onclick="closeModal('deleteProblemModal')" class="text-slate-400 hover:text-white text-xl">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <!-- Thông tin bài tập -->
+    <div class="p-3.5 rounded-xl bg-white/5 border border-white/10 space-y-1">
+      <div class="flex items-center justify-between">
+        <span class="text-xs text-slate-400">Bài tập:</span>
+        <span id="del-problem-id" class="text-xs font-mono text-cyan-400">#0</span>
+      </div>
+      <div id="del-problem-title" class="text-sm font-bold text-white truncate">Tiêu đề bài</div>
+      <div id="del-problem-slug" class="text-xs font-mono text-slate-400 truncate">slug-bai-tap</div>
+    </div>
+
+    <!-- Khối Cảnh báo & Tùy chọn -->
+    <div id="del-modal-body" class="space-y-3">
+      <!-- Sẽ được fill động qua JS -->
+    </div>
+
+    <!-- Trạng thái báo lỗi / đang xử lý -->
+    <div id="del-status-msg" class="text-xs min-h-[1.25rem]"></div>
+
+    <!-- Footer Hành động -->
+    <div class="flex items-center justify-end space-x-3 pt-4 border-t border-white/10">
+      <button type="button" onclick="closeModal('deleteProblemModal')" class="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold transition-colors cursor-pointer">
+        Hủy bỏ
+      </button>
+      <button type="button" id="btn-confirm-delete" onclick="executeDeleteProblem()" class="px-5 py-2 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs flex items-center space-x-2 shadow-[0_0_15px_rgba(244,63,94,0.4)] transition-all cursor-pointer">
+        <i class="fa-solid fa-trash-can"></i>
+        <span id="btn-confirm-delete-text">Xác Nhận Xóa</span>
+      </button>
+    </div>
+  </div>
+</div>
+
 <script>
 function openModal(modalId) {
   document.getElementById(modalId).classList.remove('hidden');
@@ -907,10 +1041,12 @@ window.addEventListener('click', function(e) {
   const editModal = document.getElementById('editModal');
   const testcasesModal = document.getElementById('testcasesModal');
   const importModal = document.getElementById('importTestcasesModal');
+  const deleteModal = document.getElementById('deleteProblemModal');
   if (e.target === createModal) closeModal('createModal');
   if (e.target === editModal) closeModal('editModal');
   if (e.target === testcasesModal) closeModal('testcasesModal');
   if (e.target === importModal) closeModal('importTestcasesModal');
+  if (e.target === deleteModal) closeModal('deleteProblemModal');
 });
 
 function openEditModal(problem) {
@@ -1537,6 +1673,178 @@ function applyImportedTestcases() {
     if (statusEl) {
       statusEl.innerHTML = `<span class="text-amber-400 font-semibold"><i class="fa-solid fa-circle-info mr-1"></i>Đã nhập ${validatedImportCases.length} test case. Hãy bấm "Lưu Bộ Test Cases" để hoàn tất!</span>`;
     }
+  }
+}
+
+// =========================================================================
+// QUẢN LÝ XÓA & KHÔI PHỤC BÀI TẬP (SOFT DELETE / HARD DELETE / RESTORE)
+// =========================================================================
+let currentDeleteTarget = {
+  problemId: 0,
+  title: '',
+  slug: '',
+  totalSubmissions: 0,
+  isHardDeleteOnly: false
+};
+
+function openDeleteModal(problemId, title, slug, totalSubmissions, isHardDeleteOnly = false) {
+  currentDeleteTarget = { problemId, title, slug, totalSubmissions, isHardDeleteOnly };
+
+  document.getElementById('del-problem-id').textContent = '#' + problemId;
+  document.getElementById('del-problem-title').textContent = title;
+  document.getElementById('del-problem-slug').textContent = slug;
+  document.getElementById('del-status-msg').innerHTML = '';
+
+  const btn = document.getElementById('btn-confirm-delete');
+  btn.disabled = false;
+
+  const bodyEl = document.getElementById('del-modal-body');
+  const modalTitle = document.getElementById('del-modal-title');
+  const modalSubtitle = document.getElementById('del-modal-subtitle');
+  const modalIcon = document.getElementById('del-modal-icon');
+
+  if (isHardDeleteOnly) {
+    modalTitle.textContent = 'Xóa Vĩnh Viễn Khỏi Hệ Thống';
+    modalSubtitle.textContent = 'Bài tập chưa có lượt nộp nào, có thể dọn sạch hoàn toàn';
+    modalIcon.innerHTML = '<i class="fa-solid fa-fire text-rose-500"></i>';
+    btn.innerHTML = '<i class="fa-solid fa-fire"></i><span>Xác Nhận Xóa Vĩnh Viễn</span>';
+
+    bodyEl.innerHTML = `
+      <div class="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-200 space-y-1.5">
+        <div class="font-bold flex items-center space-x-1.5 text-rose-400">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+          <span>Hành động này không thể hoàn tác!</span>
+        </div>
+        <p>Hệ thống sẽ xóa vĩnh viễn bài tập này cùng toàn bộ các phiên bản và bộ test case đi kèm khỏi cơ sở dữ liệu.</p>
+      </div>
+    `;
+  } else if (totalSubmissions > 0) {
+    modalTitle.textContent = 'Xác Nhận Xóa Mềm Bài Tập';
+    modalSubtitle.textContent = 'Đưa vào Thùng rác và bảo lưu dữ liệu học tập';
+    modalIcon.innerHTML = '<i class="fa-solid fa-box-archive text-amber-400"></i>';
+    btn.innerHTML = '<i class="fa-solid fa-box-archive"></i><span>Đưa Vào Thùng Rác</span>';
+
+    bodyEl.innerHTML = `
+      <div class="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-200 space-y-2">
+        <div class="font-bold flex items-center space-x-2 text-amber-400">
+          <i class="fa-solid fa-shield-halved"></i>
+          <span>Bài tập đã có ${totalSubmissions} lượt nộp bài của học viên</span>
+        </div>
+        <p class="leading-relaxed">
+          Theo tiêu chuẩn Online Judge, hệ thống áp dụng <strong>Xóa mềm (Soft Delete)</strong>:
+        </p>
+        <ul class="list-disc pl-4 space-y-1 text-slate-300">
+          <li>Bài tập được chuyển vào <strong>Thùng rác</strong> và ẩn khỏi thư viện luyện tập của học sinh.</li>
+          <li>Học sinh không thể vào giải hay nộp bài mới; slug gốc được tự động giải phóng.</li>
+          <li><strong>Bảo toàn 100%:</strong> Mã nguồn, điểm số và lịch sử nộp bài của học viên giữ nguyên vẹn.</li>
+          <li>Giảng viên/Admin có thể <strong>Khôi phục</strong> lại bài tập bất kỳ lúc nào trong Thùng rác.</li>
+        </ul>
+      </div>
+    `;
+  } else {
+    modalTitle.textContent = 'Xác Nhận Xóa Bài Tập';
+    modalSubtitle.textContent = 'Bài tập chưa có lượt nộp bài nào';
+    modalIcon.innerHTML = '<i class="fa-solid fa-trash-can text-rose-400"></i>';
+    btn.innerHTML = '<i class="fa-solid fa-trash-can"></i><span>Xác Nhận Xóa</span>';
+
+    bodyEl.innerHTML = `
+      <div class="space-y-2.5 text-xs">
+        <p class="text-slate-300">Bài tập này chưa có học viên nào nộp bài. Bạn muốn xử lý theo cách nào?</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <label class="flex flex-col p-3 rounded-xl bg-white/5 border border-white/10 hover:border-cyan-500/50 cursor-pointer transition-colors">
+            <div class="flex items-center space-x-2">
+              <input type="radio" name="del_mode_radio" value="soft" checked class="accent-cyan-400">
+              <span class="font-bold text-white">Xóa mềm (Khuyên dùng)</span>
+            </div>
+            <span class="text-[11px] text-slate-400 mt-1">Đưa vào Thùng rác, có thể khôi phục lại bất cứ lúc nào</span>
+          </label>
+          <label class="flex flex-col p-3 rounded-xl bg-white/5 border border-white/10 hover:border-rose-500/50 cursor-pointer transition-colors">
+            <div class="flex items-center space-x-2">
+              <input type="radio" name="del_mode_radio" value="hard" class="accent-rose-500">
+              <span class="font-bold text-rose-400">Xóa vĩnh viễn</span>
+            </div>
+            <span class="text-[11px] text-slate-400 mt-1">Xóa sạch khỏi CSDL, không thể hoàn tác</span>
+          </label>
+        </div>
+      </div>
+    `;
+  }
+
+  openModal('deleteProblemModal');
+}
+
+async function executeDeleteProblem() {
+  const btn = document.getElementById('btn-confirm-delete');
+  const statusMsg = document.getElementById('del-status-msg');
+
+  let mode = 'soft';
+  if (currentDeleteTarget.isHardDeleteOnly) {
+    mode = 'hard';
+  } else if (currentDeleteTarget.totalSubmissions > 0) {
+    mode = 'soft';
+  } else {
+    mode = document.querySelector('input[name="del_mode_radio"]:checked')?.value || 'soft';
+  }
+
+  const action = mode === 'hard' ? 'hard_delete' : 'soft_delete';
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>Đang xử lý...</span>';
+  statusMsg.innerHTML = '<span class="text-cyan-400">Đang gửi yêu cầu...</span>';
+
+  try {
+    const res = await fetch('/BaiTapLon/api/delete_problem.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: action,
+        problem_id: currentDeleteTarget.problemId
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Có lỗi xảy ra khi xóa bài tập.');
+    }
+
+    statusMsg.innerHTML = `<span class="text-emerald-400 font-semibold"><i class="fa-solid fa-circle-check mr-1"></i>${escapeHtml(data.message)}</span>`;
+
+    setTimeout(() => {
+      closeModal('deleteProblemModal');
+      window.location.reload();
+    }, 600);
+
+  } catch (err) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-trash-can"></i><span>Thử Lại</span>';
+    statusMsg.innerHTML = `<span class="text-rose-400 font-semibold"><i class="fa-solid fa-triangle-exclamation mr-1"></i>${escapeHtml(err.message)}</span>`;
+  }
+}
+
+async function restoreProblem(problemId, title) {
+  if (!confirm(`Bạn có chắc chắn muốn khôi phục bài tập "${title}" trở lại danh sách hoạt động?`)) {
+    return;
+  }
+
+  try {
+    const res = await fetch('/BaiTapLon/api/delete_problem.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'restore',
+        problem_id: problemId
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || 'Không thể khôi phục bài tập.');
+    }
+
+    alert(data.message);
+    window.location.reload();
+  } catch (err) {
+    alert('Lỗi: ' + err.message);
   }
 }
 </script>

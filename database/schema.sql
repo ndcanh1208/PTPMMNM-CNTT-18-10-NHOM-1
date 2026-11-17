@@ -70,9 +70,11 @@ CREATE TABLE `problems` (
   `is_public` TINYINT(1) NOT NULL DEFAULT 1 COMMENT '1 = Công khai; 0 = Chỉ trong lớp học',
   `created_by` INT NOT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `deleted_at` DATETIME NULL DEFAULT NULL COMMENT 'Thời điểm xóa mềm (NULL = đang hoạt động)',
   INDEX `idx_problems_difficulty` (`difficulty`),
   INDEX `idx_problems_topic` (`topic`),
   INDEX `idx_problems_creator` (`created_by`),
+  INDEX `idx_problems_deleted_at` (`deleted_at`),
   CONSTRAINT `fk_problems_creator` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Bảng bài tập lập trình gốc';
 

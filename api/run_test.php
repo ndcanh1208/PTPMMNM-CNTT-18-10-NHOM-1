@@ -65,7 +65,7 @@ $stmt = $pdo->prepare("
     SELECT p.id, p.slug, p.title, pv.id as version_id, pv.time_limit_ms, pv.memory_limit_kb
     FROM problems p
     JOIN problem_versions pv ON p.current_version_id = pv.id
-    WHERE p.id = :id
+    WHERE p.id = :id AND p.deleted_at IS NULL
 ");
 $stmt->execute(['id' => $problemId]);
 $problem = $stmt->fetch();

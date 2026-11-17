@@ -23,6 +23,7 @@ $problemStmt = $pdo->prepare("
     SELECT p.id, p.slug, p.title, p.topic, p.difficulty, p.current_version_id, pv.version_number
     FROM problems p
     JOIN problem_versions pv ON p.current_version_id = pv.id
+    WHERE p.deleted_at IS NULL
     ORDER BY p.id ASC
 ");
 $problemStmt->execute();

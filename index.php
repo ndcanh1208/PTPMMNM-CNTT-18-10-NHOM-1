@@ -14,7 +14,7 @@ $currentUser = Auth::user();
 $pdo = getDbConnection();
 
 // 1. Thống kê tổng quan
-$totalProblems = (int)$pdo->query("SELECT COUNT(*) FROM problems WHERE is_public = 1")->fetchColumn();
+$totalProblems = (int)$pdo->query("SELECT COUNT(*) FROM problems WHERE is_public = 1 AND deleted_at IS NULL")->fetchColumn();
 $totalSubmissions = (int)$pdo->query("SELECT COUNT(*) FROM submissions")->fetchColumn();
 $queueCount = (int)$pdo->query("SELECT COUNT(*) FROM judging_runs WHERE status = 'Queued'")->fetchColumn();
 
@@ -22,9 +22,10 @@ $queueCount = (int)$pdo->query("SELECT COUNT(*) FROM judging_runs WHERE status =
 $solvedCount = 0;
 if ($currentUser) {
     $solvedStmt = $pdo->prepare("
-        SELECT COUNT(DISTINCT problem_id) 
-        FROM submissions 
-        WHERE user_id = ? AND final_verdict = 'AC'
+        SELECT COUNT(DISTINCT s.problem_id) 
+        FROM submissions s
+        JOIN problems p ON s.problem_id = p.id
+        WHERE s.user_id = ? AND s.final_verdict = 'AC' AND p.deleted_at IS NULL
     ");
     $solvedStmt->execute([$currentUser['id']]);
     $solvedCount = (int)$solvedStmt->fetchColumn();
@@ -36,7 +37,7 @@ $probStmt = $pdo->query("
            pv.version_number, pv.time_limit_ms, pv.memory_limit_kb
     FROM problems p
     JOIN problem_versions pv ON p.current_version_id = pv.id
-    WHERE p.is_public = 1
+    WHERE p.is_public = 1 AND p.deleted_at IS NULL
     ORDER BY p.id ASC
     LIMIT 6
 ");

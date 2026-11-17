@@ -25,7 +25,7 @@ if ($problemId > 0) {
                pv.output_description, pv.constraints, pv.time_limit_ms, pv.memory_limit_kb
         FROM problems p
         JOIN problem_versions pv ON p.current_version_id = pv.id
-        WHERE p.id = :id AND p.is_public = 1
+        WHERE p.id = :id AND p.is_public = 1 AND p.deleted_at IS NULL
     ");
     $stmt->execute(['id' => $problemId]);
 } elseif ($slugParam !== '') {
@@ -35,7 +35,7 @@ if ($problemId > 0) {
                pv.output_description, pv.constraints, pv.time_limit_ms, pv.memory_limit_kb
         FROM problems p
         JOIN problem_versions pv ON p.current_version_id = pv.id
-        WHERE (p.slug = :slug OR LOWER(p.slug) = LOWER(:slug2)) AND p.is_public = 1
+        WHERE (p.slug = :slug OR LOWER(p.slug) = LOWER(:slug2)) AND p.is_public = 1 AND p.deleted_at IS NULL
     ");
     $stmt->execute(['slug' => $slugParam, 'slug2' => strtolower(str_replace('_', '-', $slugParam))]);
 } else {
@@ -45,7 +45,7 @@ if ($problemId > 0) {
                pv.output_description, pv.constraints, pv.time_limit_ms, pv.memory_limit_kb
         FROM problems p
         JOIN problem_versions pv ON p.current_version_id = pv.id
-        WHERE p.is_public = 1
+        WHERE p.is_public = 1 AND p.deleted_at IS NULL
         ORDER BY p.id ASC
         LIMIT 1
     ");
