@@ -545,10 +545,16 @@ require_once __DIR__ . '/includes/sidebar.php';
             </h4>
             <p class="text-[11px] text-slate-400 mt-0.5">Thêm các test case công khai (mẫu) và chấm kín (bảo mật khi chấm).</p>
           </div>
-          <button type="button" onclick="addCreateTestcaseRow()" class="px-3 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 hover:text-cyan-300 border border-cyan-500/30 text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer">
-            <i class="fa-solid fa-plus text-[10px]"></i>
-            <span>Thêm Test Case</span>
-          </button>
+          <div class="flex items-center space-x-2">
+            <button type="button" onclick="openImportModal('create')" class="px-3 py-1.5 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 hover:text-purple-200 border border-purple-500/30 text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer" title="Nhập test case từ file ZIP hoặc JSON">
+              <i class="fa-solid fa-file-import text-[11px]"></i>
+              <span>Nhập từ File (ZIP/JSON)</span>
+            </button>
+            <button type="button" onclick="addCreateTestcaseRow()" class="px-3 py-1.5 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 hover:text-cyan-300 border border-cyan-500/30 text-xs font-semibold flex items-center space-x-1.5 transition-colors cursor-pointer">
+              <i class="fa-solid fa-plus text-[10px]"></i>
+              <span>Thêm Test Case</span>
+            </button>
+          </div>
         </div>
 
         <div id="create-tc-list" class="space-y-3">
@@ -693,12 +699,18 @@ require_once __DIR__ . '/includes/sidebar.php';
       <!-- Dynamic testcase cards loaded here -->
     </div>
 
-    <!-- Nút thêm test case -->
+    <!-- Nút thêm test case & Nhập từ file -->
     <div class="shrink-0 flex items-center justify-between pt-2 border-t border-white/10">
-      <button type="button" onclick="addTestcaseRow()" class="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-cyan-400 hover:text-cyan-300 border border-cyan-500/30 text-xs font-bold flex items-center space-x-2 transition-colors cursor-pointer">
-        <i class="fa-solid fa-plus"></i>
-        <span>Thêm Test Case Mới</span>
-      </button>
+      <div class="flex items-center space-x-2">
+        <button type="button" onclick="addTestcaseRow()" class="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-cyan-400 hover:text-cyan-300 border border-cyan-500/30 text-xs font-bold flex items-center space-x-2 transition-colors cursor-pointer">
+          <i class="fa-solid fa-plus"></i>
+          <span>Thêm Test Case Mới</span>
+        </button>
+        <button type="button" onclick="openImportModal('edit')" class="px-4 py-2 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 hover:text-purple-200 border border-purple-500/30 text-xs font-bold flex items-center space-x-2 transition-colors cursor-pointer" title="Nhập test case từ file ZIP hoặc JSON">
+          <i class="fa-solid fa-file-import"></i>
+          <span>Nhập từ File (ZIP/JSON)</span>
+        </button>
+      </div>
       <span class="text-xs text-slate-400" id="tc-total-count-label">Tổng cộng: 0 test case</span>
     </div>
 
@@ -712,6 +724,162 @@ require_once __DIR__ . '/includes/sidebar.php';
         <button type="button" id="btn-save-testcases" onclick="saveTestcases()" class="btn-cyan px-6 py-2.5 rounded-xl text-black font-bold text-sm cursor-pointer shadow-[0_0_15px_rgba(0,255,255,0.4)] flex items-center space-x-2">
           <i class="fa-solid fa-floppy-disk"></i>
           <span>Lưu Bộ Test Cases</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL 4: NHẬP VÀ THẨM ĐỊNH BỘ TEST CASES TỪ TỆP (ZIP/JSON) -->
+<div id="importTestcasesModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm hidden p-4 overflow-y-auto">
+  <div class="glass-panel w-full max-w-4xl rounded-2xl border border-white/20 p-6 my-8 space-y-5 shadow-2xl flex flex-col max-h-[92vh]">
+    <!-- Header -->
+    <div class="flex items-center justify-between border-b border-white/10 pb-4 shrink-0">
+      <div class="space-y-1">
+        <h3 class="text-xl font-bold text-white flex items-center space-x-2">
+          <i class="fa-solid fa-file-import text-purple-400"></i>
+          <span>Nhập & Thẩm Định Bộ Test Case Từ File</span>
+        </h3>
+        <p class="text-xs text-slate-400">
+          Tự động ghép cặp các file <code class="text-cyan-300 font-mono">.in</code> / <code class="text-cyan-300 font-mono">.out</code> trong tệp ZIP hoặc tệp JSON, kiểm tra cấu trúc và đối chiếu tính đúng đắn.
+        </p>
+      </div>
+      <button onclick="closeModal('importTestcasesModal')" class="text-slate-400 hover:text-white text-xl">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <!-- Body -->
+    <div class="overflow-y-auto pr-1 flex-1 space-y-4" id="import-body-stage">
+      <!-- GIAI ĐOẠN 1: CHỌN TỆP & CẤU HÌNH ĐỐI SOÁT -->
+      <div id="import-stage-upload" class="space-y-4">
+        <!-- Vùng kéo thả tệp -->
+        <div class="p-6 rounded-2xl bg-white/[0.02] border-2 border-dashed border-white/20 hover:border-purple-400/50 transition-all text-center space-y-3 cursor-pointer group" onclick="document.getElementById('import-file-input').click()">
+          <input type="file" id="import-file-input" accept=".zip,.json" class="hidden" onchange="handleImportFileSelected(this)">
+          <div class="w-14 h-14 rounded-2xl bg-purple-500/10 border border-purple-500/30 text-purple-400 flex items-center justify-center text-2xl mx-auto group-hover:scale-110 transition-transform">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+          </div>
+          <div>
+            <div class="text-sm font-bold text-white group-hover:text-purple-300 transition-colors" id="import-file-name-label">
+              Nhấp hoặc kéo thả tệp .ZIP hoặc .JSON vào đây
+            </div>
+            <div class="text-xs text-slate-400 mt-1">
+              Hỗ trợ tệp nén ZIP (tối đa 25MB) chứa các cặp file văn bản (.in/.out) hoặc tệp danh sách .JSON
+            </div>
+          </div>
+        </div>
+
+        <!-- Hướng dẫn quy cách đặt tên file -->
+        <div class="p-4 rounded-xl bg-cyan-500/5 border border-cyan-500/20 text-xs text-slate-300 space-y-1.5">
+          <div class="font-bold text-cyan-300 flex items-center space-x-1.5">
+            <i class="fa-solid fa-circle-info"></i>
+            <span>Quy cách cấu trúc tệp ZIP được hỗ trợ tự động:</span>
+          </div>
+          <ul class="list-disc list-inside space-y-1 text-slate-400 ml-1">
+            <li>Theo đuôi mở rộng: <code class="text-cyan-300">1.in</code> & <code class="text-cyan-300">1.out</code> (hoặc <code class="text-cyan-300">.inp</code> & <code class="text-cyan-300">.ans</code>)</li>
+            <li>Theo tiền tố: <code class="text-cyan-300">input01.txt</code> & <code class="text-cyan-300">output01.txt</code></li>
+            <li>Theo thư mục con: <code class="text-cyan-300">test01/input.txt</code> & <code class="text-cyan-300">test01/output.txt</code></li>
+          </ul>
+        </div>
+
+        <!-- Tùy chọn Cấp độ 3: Đối soát với Lời giải chuẩn -->
+        <div class="p-4 rounded-xl bg-white/[0.02] border border-white/10 space-y-3">
+          <div class="flex items-center justify-between">
+            <label class="flex items-center space-x-2 text-xs font-bold text-slate-200 cursor-pointer select-none">
+              <input type="checkbox" id="enable-model-verify" class="rounded bg-black/50 border-white/20 text-purple-400 focus:ring-0" onchange="toggleModelVerifyBox(this.checked)">
+              <span>Kích hoạt Thẩm định Cấp độ 3: Đối soát với Lời giải chuẩn (Model Solution)</span>
+            </label>
+            <span class="text-[11px] text-amber-400 font-semibold">Tự động phát hiện test case có đáp án sai</span>
+          </div>
+
+          <div id="model-verify-box" class="space-y-3 hidden pt-2 border-t border-white/5">
+            <div class="flex items-center space-x-4">
+              <span class="text-xs text-slate-300 font-semibold">Ngôn ngữ Lời giải chuẩn:</span>
+              <label class="inline-flex items-center space-x-1.5 text-xs text-slate-300 cursor-pointer">
+                <input type="radio" name="model_lang" value="python" checked class="accent-cyan-400">
+                <span>Python 3</span>
+              </label>
+              <label class="inline-flex items-center space-x-1.5 text-xs text-slate-300 cursor-pointer">
+                <input type="radio" name="model_lang" value="cpp" class="accent-cyan-400">
+                <span>C++ (G++ 17)</span>
+              </label>
+            </div>
+            <div>
+              <label class="block text-[11px] font-mono text-slate-400 mb-1">Mã nguồn Lời giải chuẩn (Reference Solution):</label>
+              <textarea id="model-solution-code" rows="4" placeholder="Dán mã nguồn lời giải chuẩn đã kiểm chứng vào đây..." class="w-full p-2.5 rounded-lg bg-black/60 border border-white/15 text-white font-mono text-xs focus:outline-none focus:border-purple-400"></textarea>
+              <p class="text-[11px] text-slate-400 mt-1">Hệ thống sẽ biên dịch và chạy lời giải này trên từng file input, so khớp kết quả sinh ra với output tải lên.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- GIAI ĐOẠN 2: BẢNG BÁO CÁO KẾT QUẢ THẨM ĐỊNH (PREVIEW TABLE) -->
+      <div id="import-stage-preview" class="space-y-4 hidden">
+        <!-- Thống kê tổng hợp -->
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-3" id="import-stats-cards">
+          <!-- Populated by JS -->
+        </div>
+
+        <!-- Cảnh báo nếu có file mồ côi -->
+        <div id="import-orphans-alert" class="hidden"></div>
+
+        <!-- Bảng danh sách test cases đã thẩm định -->
+        <div class="glass-panel rounded-xl border border-white/10 overflow-hidden">
+          <div class="max-h-[300px] overflow-y-auto">
+            <table class="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr class="bg-white/5 text-[11px] uppercase tracking-wider text-slate-400 font-bold border-b border-white/10">
+                  <th class="py-2.5 px-3 text-center w-12">STT</th>
+                  <th class="py-2.5 px-3">Cặp File Tải Lên</th>
+                  <th class="py-2.5 px-3">Xem trước Dữ liệu</th>
+                  <th class="py-2.5 px-3 text-center">Trạng thái thẩm định</th>
+                  <th class="py-2.5 px-3 text-center">Phân loại</th>
+                  <th class="py-2.5 px-3 text-center w-20">Điểm</th>
+                </tr>
+              </thead>
+              <tbody id="import-preview-table-body" class="divide-y divide-white/5 font-mono text-xs">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Tùy chọn ghi đè hay thêm nối tiếp -->
+        <div class="p-3.5 rounded-xl bg-white/[0.02] border border-white/10 flex items-center justify-between">
+          <div class="text-xs text-slate-300 font-semibold">Chế độ áp dụng vào bài tập:</div>
+          <div class="flex items-center space-x-4 text-xs">
+            <label class="inline-flex items-center space-x-1.5 cursor-pointer text-slate-200">
+              <input type="radio" name="import_apply_mode" value="replace" checked class="accent-cyan-400">
+              <span>Thay thế toàn bộ test hiện tại</span>
+            </label>
+            <label class="inline-flex items-center space-x-1.5 cursor-pointer text-slate-200">
+              <input type="radio" name="import_apply_mode" value="append" class="accent-cyan-400">
+              <span>Thêm nối tiếp vào cuối danh sách</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer actions -->
+    <div class="flex items-center justify-between pt-3 border-t border-white/10 shrink-0">
+      <div id="import-status-msg" class="text-xs"></div>
+      <div class="flex items-center space-x-3">
+        <button type="button" onclick="closeModal('importTestcasesModal')" class="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-sm font-semibold transition-colors">
+          Hủy bỏ
+        </button>
+        <button type="button" id="btn-back-import-upload" onclick="resetImportUploadStage()" class="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-sm font-semibold transition-colors hidden">
+          <i class="fa-solid fa-arrow-left mr-1"></i>Chọn lại tệp
+        </button>
+        <!-- Nút ở giai đoạn 1 -->
+        <button type="button" id="btn-start-import-validate" onclick="uploadAndValidateTestcases()" class="btn-cyan px-6 py-2.5 rounded-xl text-black font-bold text-sm cursor-pointer shadow-[0_0_15px_rgba(0,255,255,0.4)] flex items-center space-x-2">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <span>Tải Lên & Thẩm Định</span>
+        </button>
+        <!-- Nút ở giai đoạn 2 -->
+        <button type="button" id="btn-apply-import" onclick="applyImportedTestcases()" class="btn-cyan px-6 py-2.5 rounded-xl text-black font-bold text-sm cursor-pointer shadow-[0_0_15px_rgba(0,255,255,0.4)] hidden flex items-center space-x-2">
+          <i class="fa-solid fa-check"></i>
+          <span>Xác Nhận Nhập Vào Bài Tập</span>
         </button>
       </div>
     </div>
@@ -738,9 +906,11 @@ window.addEventListener('click', function(e) {
   const createModal = document.getElementById('createModal');
   const editModal = document.getElementById('editModal');
   const testcasesModal = document.getElementById('testcasesModal');
+  const importModal = document.getElementById('importTestcasesModal');
   if (e.target === createModal) closeModal('createModal');
   if (e.target === editModal) closeModal('editModal');
   if (e.target === testcasesModal) closeModal('testcasesModal');
+  if (e.target === importModal) closeModal('importTestcasesModal');
 });
 
 function openEditModal(problem) {
@@ -1114,6 +1284,259 @@ async function saveTestcases() {
     saveBtn.disabled = false;
     saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-1"></i><span>Lưu Bộ Test Cases</span>';
     statusEl.innerHTML = `<span class="text-rose-400 font-semibold"><i class="fa-solid fa-triangle-exclamation mr-1"></i>Lỗi kết nối: ${escapeHtml(err.message)}</span>`;
+  }
+}
+
+// -------------------------------------------------------------
+// XỬ LÝ NHẬP TEST CASES TỪ TỆP (ZIP/JSON) & THẨM ĐỊNH ĐỐI SOÁT
+// -------------------------------------------------------------
+let currentImportTarget = 'create';
+let validatedImportCases = [];
+
+function openImportModal(target) {
+  currentImportTarget = target;
+  resetImportUploadStage();
+  openModal('importTestcasesModal');
+}
+
+function resetImportUploadStage() {
+  document.getElementById('import-stage-upload').classList.remove('hidden');
+  document.getElementById('import-stage-preview').classList.add('hidden');
+  document.getElementById('btn-start-import-validate').classList.remove('hidden');
+  document.getElementById('btn-apply-import').classList.add('hidden');
+  document.getElementById('btn-back-import-upload').classList.add('hidden');
+  document.getElementById('import-file-input').value = '';
+  document.getElementById('import-file-name-label').textContent = 'Nhấp hoặc kéo thả tệp .ZIP hoặc .JSON vào đây';
+  document.getElementById('import-status-msg').innerHTML = '';
+  document.getElementById('enable-model-verify').checked = false;
+  document.getElementById('model-verify-box').classList.add('hidden');
+  document.getElementById('model-solution-code').value = '';
+  validatedImportCases = [];
+}
+
+function handleImportFileSelected(input) {
+  if (input.files && input.files[0]) {
+    const f = input.files[0];
+    document.getElementById('import-file-name-label').innerHTML = `
+      <span class="text-purple-300 font-bold flex items-center justify-center gap-2">
+        <i class="fa-solid fa-file-zipper text-lg"></i>
+        <span>${escapeHtml(f.name)}</span>
+        <span class="text-xs text-slate-400 font-normal">(${Math.round(f.size / 1024)} KB)</span>
+      </span>
+    `;
+  }
+}
+
+function toggleModelVerifyBox(checked) {
+  const box = document.getElementById('model-verify-box');
+  if (checked) {
+    box.classList.remove('hidden');
+  } else {
+    box.classList.add('hidden');
+  }
+}
+
+async function uploadAndValidateTestcases() {
+  const fileInput = document.getElementById('import-file-input');
+  if (!fileInput.files || !fileInput.files[0]) {
+    alert('Vui lòng chọn tệp ZIP hoặc JSON chứa bộ test case.');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('testcase_file', fileInput.files[0]);
+
+  const enableVerify = document.getElementById('enable-model-verify').checked;
+  if (enableVerify) {
+    const code = document.getElementById('model-solution-code').value.trim();
+    const lang = document.querySelector('input[name="model_lang"]:checked')?.value || 'python';
+    if (code !== '') {
+      formData.append('model_solution', code);
+      formData.append('solution_lang', lang);
+    }
+  }
+
+  const btn = document.getElementById('btn-start-import-validate');
+  const statusMsg = document.getElementById('import-status-msg');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>Đang giải nén & thẩm định...';
+  statusMsg.innerHTML = '';
+
+  try {
+    const res = await fetch('/BaiTapLon/api/import_testcases.php', {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-magnifying-glass mr-1"></i><span>Tải Lên & Thẩm Định</span>';
+
+    if (!res.ok || !data.success) {
+      statusMsg.innerHTML = `<span class="text-rose-400 font-semibold"><i class="fa-solid fa-triangle-exclamation mr-1"></i>${escapeHtml(data.error || 'Lỗi thẩm định tệp.')}</span>`;
+      return;
+    }
+
+    validatedImportCases = data.test_cases || [];
+
+    // Render Thống kê
+    const statsContainer = document.getElementById('import-stats-cards');
+    const modelBadge = data.model_solution_ran
+      ? (validatedImportCases.some(t => t.status === 'MISMATCH')
+          ? '<span class="text-amber-400 font-bold">⚠️ Có test lệch đáp án</span>'
+          : '<span class="text-emerald-400 font-bold">✅ 100% Khớp lời giải</span>')
+      : '<span class="text-slate-400">Không kích hoạt</span>';
+
+    statsContainer.innerHTML = `
+      <div class="p-3 rounded-xl bg-white/[0.03] border border-white/10">
+        <div class="text-[11px] text-slate-400 uppercase font-semibold">Tổng tìm thấy</div>
+        <div class="text-lg font-black text-white font-mono mt-0.5">${data.total_found}</div>
+      </div>
+      <div class="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+        <div class="text-[11px] text-emerald-400 uppercase font-semibold">Hợp lệ (Đủ cặp)</div>
+        <div class="text-lg font-black text-emerald-300 font-mono mt-0.5">${data.valid_count}</div>
+      </div>
+      <div class="p-3 rounded-xl ${data.orphan_count > 0 ? 'bg-rose-500/10 border border-rose-500/30' : 'bg-white/[0.03] border border-white/10'}">
+        <div class="text-[11px] ${data.orphan_count > 0 ? 'text-rose-400 font-bold' : 'text-slate-400'} uppercase font-semibold">File mồ côi (Thiếu cặp)</div>
+        <div class="text-lg font-black ${data.orphan_count > 0 ? 'text-rose-300' : 'text-slate-400'} font-mono mt-0.5">${data.orphan_count}</div>
+      </div>
+      <div class="p-3 rounded-xl bg-purple-500/10 border border-purple-500/30">
+        <div class="text-[11px] text-purple-300 uppercase font-semibold">Đối soát Lời giải</div>
+        <div class="text-xs font-semibold mt-1">${modelBadge}</div>
+      </div>
+    `;
+
+    // Cảnh báo nếu có file mồ côi
+    const orphanBox = document.getElementById('import-orphans-alert');
+    if (data.orphan_count > 0) {
+      orphanBox.classList.remove('hidden');
+      orphanBox.innerHTML = `
+        <div class="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs space-y-1">
+          <div class="font-bold flex items-center gap-1.5 text-rose-400">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            <span>Phát hiện ${data.orphan_count} file không đủ cặp .in/.out (sẽ tự động bỏ qua):</span>
+          </div>
+          <ul class="list-disc list-inside space-y-0.5 text-slate-300 ml-1">
+            ${data.orphans.map(o => `<li><code class="text-rose-300">${escapeHtml(o.file)}</code>: ${escapeHtml(o.message)}</li>`).join('')}
+          </ul>
+        </div>
+      `;
+    } else {
+      orphanBox.classList.add('hidden');
+    }
+
+    // Render Preview Table
+    const tbody = document.getElementById('import-preview-table-body');
+    tbody.innerHTML = '';
+
+    validatedImportCases.forEach((tc, idx) => {
+      const isSampleChecked = (tc.is_sample == 1) ? 'checked' : '';
+      const isHiddenChecked = isSampleChecked ? '' : 'checked';
+      const statusBadge = tc.status === 'VERIFIED'
+        ? '<span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[11px] font-sans font-bold">✅ Khớp lời giải</span>'
+        : (tc.status === 'MISMATCH'
+            ? '<span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[11px] font-sans font-bold" title="Lệch kết quả với Lời giải chuẩn">⚠️ Lệch đáp án</span>'
+            : '<span class="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-[11px] font-sans font-bold">Hợp lệ</span>');
+
+      const tr = document.createElement('tr');
+      tr.className = 'hover:bg-white/[0.02] transition-colors import-preview-row';
+      tr.innerHTML = `
+        <td class="py-2.5 px-3 text-center text-slate-400 font-bold">#${idx + 1}</td>
+        <td class="py-2.5 px-3">
+          <div class="text-white font-bold">${escapeHtml(tc.input_name)}</div>
+          <div class="text-slate-400 text-[11px]">${escapeHtml(tc.output_name)}</div>
+        </td>
+        <td class="py-2.5 px-3 max-w-[220px]">
+          <div class="truncate text-slate-300 text-[11px]" title="${escapeHtml(tc.input_preview)}">
+            <span class="text-slate-500">In:</span> ${escapeHtml(tc.input_preview || '(Trống)')}
+          </div>
+          <div class="truncate text-cyan-300 text-[11px]" title="${escapeHtml(tc.output_preview)}">
+            <span class="text-slate-500">Out:</span> ${escapeHtml(tc.output_preview || '(Trống)')}
+          </div>
+        </td>
+        <td class="py-2.5 px-3 text-center">${statusBadge}</td>
+        <td class="py-2.5 px-3 text-center">
+          <div class="inline-flex items-center space-x-3 text-[11px]">
+            <label class="inline-flex items-center space-x-1 cursor-pointer">
+              <input type="radio" name="preview_vis_${idx}" value="sample" class="accent-cyan-400 import-preview-vis-sample" ${isSampleChecked}>
+              <span class="text-cyan-400">Mẫu</span>
+            </label>
+            <label class="inline-flex items-center space-x-1 cursor-pointer">
+              <input type="radio" name="preview_vis_${idx}" value="hidden" class="accent-purple-400 import-preview-vis-hidden" ${isHiddenChecked}>
+              <span class="text-purple-400">Kín</span>
+            </label>
+          </div>
+        </td>
+        <td class="py-2.5 px-3 text-center">
+          <input type="number" min="1" max="100" class="import-preview-points w-14 px-2 py-0.5 rounded bg-black/60 border border-white/15 text-white font-mono text-xs text-center focus:outline-none focus:border-cyan-400" value="${tc.points || 10}">
+        </td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    // Chuyển sang Stage 2
+    document.getElementById('import-stage-upload').classList.add('hidden');
+    document.getElementById('import-stage-preview').classList.remove('hidden');
+    document.getElementById('btn-start-import-validate').classList.add('hidden');
+    document.getElementById('btn-apply-import').classList.remove('hidden');
+    document.getElementById('btn-back-import-upload').classList.remove('hidden');
+
+  } catch (err) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-magnifying-glass mr-1"></i><span>Tải Lên & Thẩm Định</span>';
+    statusMsg.innerHTML = `<span class="text-rose-400 font-semibold"><i class="fa-solid fa-triangle-exclamation mr-1"></i>Lỗi kết nối: ${escapeHtml(err.message)}</span>`;
+  }
+}
+
+function applyImportedTestcases() {
+  if (!validatedImportCases || validatedImportCases.length === 0) {
+    alert('Không có test case nào để áp dụng.');
+    return;
+  }
+
+  // Đọc lại các lựa chọn phân loại và điểm số từ bảng xem trước
+  const rows = document.querySelectorAll('.import-preview-row');
+  rows.forEach((row, i) => {
+    if (validatedImportCases[i]) {
+      const isSample = row.querySelector('.import-preview-vis-sample').checked ? 1 : 0;
+      const points = parseInt(row.querySelector('.import-preview-points').value) || 10;
+      validatedImportCases[i].is_sample = isSample;
+      validatedImportCases[i].is_hidden = isSample ? 0 : 1;
+      validatedImportCases[i].points = points;
+    }
+  });
+
+  const applyMode = document.querySelector('input[name="import_apply_mode"]:checked')?.value || 'replace';
+
+  if (currentImportTarget === 'create') {
+    const container = document.getElementById('create-tc-list');
+    if (applyMode === 'replace') {
+      container.innerHTML = '';
+      createTcCounter = 0;
+    }
+    validatedImportCases.forEach(tc => {
+      addCreateTestcaseRow({
+        is_sample: tc.is_sample,
+        is_hidden: tc.is_hidden,
+        points: tc.points,
+        input: tc.input_data,
+        output: tc.expected_output
+      });
+    });
+    closeModal('importTestcasesModal');
+  } else if (currentImportTarget === 'edit') {
+    const container = document.getElementById('tc-list-container');
+    if (applyMode === 'replace') {
+      container.innerHTML = '';
+    }
+    validatedImportCases.forEach((tc, idx) => {
+      container.appendChild(createTestcaseCardElement(tc, idx));
+    });
+    updateTestcaseLabels();
+    closeModal('importTestcasesModal');
+    const statusEl = document.getElementById('tc-save-status');
+    if (statusEl) {
+      statusEl.innerHTML = `<span class="text-amber-400 font-semibold"><i class="fa-solid fa-circle-info mr-1"></i>Đã nhập ${validatedImportCases.length} test case. Hãy bấm "Lưu Bộ Test Cases" để hoàn tất!</span>`;
+    }
   }
 }
 </script>
