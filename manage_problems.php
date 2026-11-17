@@ -462,6 +462,11 @@ require_once __DIR__ . '/includes/sidebar.php';
         </div>
       </div>
 
+      <div>
+        <label class="block text-xs uppercase font-bold text-slate-300 mb-1">Ràng buộc & Giới hạn (Constraints)</label>
+        <textarea name="constraints" rows="2" placeholder="VD: 1 <= N <= 10^5, -10^9 <= A[i] <= 10^9..." class="w-full p-2.5 rounded-xl bg-black/40 border border-white/15 text-white text-xs font-mono"></textarea>
+      </div>
+
       <div class="p-4 rounded-xl bg-cyan-500/5 border border-cyan-500/20 space-y-3">
         <h4 class="text-xs uppercase font-bold text-cyan-400">Test Case Mẫu Ban Đầu (Công khai)</h4>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -556,6 +561,11 @@ require_once __DIR__ . '/includes/sidebar.php';
         </div>
       </div>
 
+      <div>
+        <label class="block text-xs uppercase font-bold text-slate-300 mb-1">Ràng buộc & Giới hạn (Constraints)</label>
+        <textarea name="constraints" id="edit_constraints" rows="2" class="w-full p-2.5 rounded-xl bg-black/40 border border-white/15 text-white text-xs font-mono"></textarea>
+      </div>
+
       <div class="flex items-center justify-end space-x-3 pt-4 border-t border-white/10">
         <button type="button" onclick="closeModal('editModal')" class="px-5 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-sm font-semibold transition-colors">
           Hủy bỏ
@@ -595,6 +605,7 @@ function openEditModal(problem) {
   document.getElementById('edit_description').value = problem.description || '';
   document.getElementById('edit_input_description').value = problem.input_description || '';
   document.getElementById('edit_output_description').value = problem.output_description || '';
+  document.getElementById('edit_constraints').value = problem.constraints || '';
   openModal('editModal');
 }
 </script>
