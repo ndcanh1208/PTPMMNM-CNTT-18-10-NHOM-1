@@ -1,24 +1,44 @@
 <?php
 /**
+ * ============================================================================
  * Nhom1 Online Judge - Không gian Làm bài & Chấm Trực tuyến (IDE & Solve Workspace)
- * Tình huống sử dụng 1: Chọn bài -> Viết mã -> Chạy thử -> Nộp bài -> Theo dõi chấm -> Xem kết quả
+ * ============================================================================
+ * MỤC ĐÍCH TRANG NÀY:
+ * - Cung cấp môi trường lập trình trực tuyến chia 2 cột (trái: đề bài & lịch sử; phải: trình soạn code & console).
+ * - Hỗ trợ đầy đủ luồng giải bài: Đọc đề -> Viết mã (Python/C++) -> Lưu nháp -> Chạy thử (Custom Input)
+ *   -> Nộp bài chính thức (chống nộp trùng bằng Idempotency Key) -> Theo dõi tiến trình chấm theo thời gian thực.
+ *
+ * CẤU TRÚC FILE GỒM 3 PHẦN:
+ * - PHẦN 1 (PHP): Đọc bài tập theo id/slug, kiểm tra quyền xem, lấy test ví dụ, khôi phục bản nháp và lịch sử nộp.
+ * - PHẦN 2 (HTML): Giao diện IDE 2 cột (Cột trái: Đề bài/Lịch sử; Cột phải: CodeMirror Editor + Console 2 tab).
+ * - PHẦN 3 (JavaScript): Điều khiển CodeMirror, tô đỏ dòng lỗi, gọi API lưu nháp, chạy thử, nộp bài và Polling kết quả.
  */
 
+// Bật kiểm tra kiểu dữ liệu nghiêm ngặt trong PHP
 declare(strict_types=1);
 
+// Nạp cấu hình kết nối CSDL, xác thực phiên đăng nhập (Auth) và hàm chống XSS (Security)
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/core/Auth.php';
 require_once __DIR__ . '/core/Security.php';
 
+// Khởi tạo phiên làm việc (Session), lấy thông tin người dùng hiện tại (có thể null nếu là khách) và kết nối PDO
 Auth::startSession();
 $currentUser = Auth::user();
 $pdo = getDbConnection();
 
+// ============================================================================
+// PHẦN 1: TRUY VẤN ĐỀ BÀI, KIỂM TRA PHÂN QUYỀN, LẤY TEST MẪU & BẢN NHÁP
+// ============================================================================
+
+// Đọc tham số chọn bài từ URL: hỗ trợ ?id=..., ?slug=... hoặc ?code=...
 $problemId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $slugParam = trim((string)($_GET['slug'] ?? ($_GET['code'] ?? '')));
 
-// 1. Lấy thông tin bài tập và phiên bản hiện hành
+// 1. Lấy thông tin bài tập kết hợp (JOIN) với phiên bản đề hiện hành (current_version_id)
+// Chỉ lấy bài tập chưa bị xóa mềm (p.deleted_at IS NULL)
 if ($problemId > 0) {
+    // Trường hợp 1: Người dùng truy cập bằng ID bài tập (?id=1)
     $stmt = $pdo->prepare("
         SELECT p.id, p.slug, p.title, p.topic, p.difficulty, p.source_attribution, p.visibility, p.is_public, p.created_by,
                pv.id as version_id, pv.version_number, pv.description, pv.input_description,
@@ -29,6 +49,7 @@ if ($problemId > 0) {
     ");
     $stmt->execute(['id' => $problemId]);
 } elseif ($slugParam !== '') {
+    // Trường hợp 2: Người dùng truy cập bằng mã slug thân thiện (?slug=two-sum), hỗ trợ không phân biệt hoa/thường và dấu '_'
     $stmt = $pdo->prepare("
         SELECT p.id, p.slug, p.title, p.topic, p.difficulty, p.source_attribution, p.visibility, p.is_public, p.created_by,
                pv.id as version_id, pv.version_number, pv.description, pv.input_description,
@@ -39,6 +60,7 @@ if ($problemId > 0) {
     ");
     $stmt->execute(['slug' => $slugParam, 'slug2' => strtolower(str_replace('_', '-', $slugParam))]);
 } else {
+    // Trường hợp 3: Không truyền tham số -> tự động mở bài tập công khai đầu tiên trong hệ thống
     $stmt = $pdo->prepare("
         SELECT p.id, p.slug, p.title, p.topic, p.difficulty, p.source_attribution, p.visibility, p.is_public, p.created_by,
                pv.id as version_id, pv.version_number, pv.description, pv.input_description,
@@ -53,12 +75,16 @@ if ($problemId > 0) {
 }
 $problem = $stmt->fetch();
 
+// Nếu không tìm thấy bài tập hợp lệ thì chuyển hướng về trang danh sách bài tập
 if (!$problem) {
     header('Location: /BaiTapLon/problems.php');
     exit;
 }
 
-// Kiểm tra quyền hiển thị (public / hidden / exam_only)
+// Kiểm tra quyền hiển thị của bài tập theo 3 chế độ:
+// - 'public': ai cũng xem được
+// - 'hidden': chỉ Admin hoặc Giảng viên tạo ra bài đó mới xem được
+// - 'exam_only': chỉ Admin/GV tạo bài hoặc sinh viên đã tham gia ít nhất 1 lớp học/phòng thi
 $vis = $problem['visibility'] ?? ($problem['is_public'] ? 'public' : 'hidden');
 $isStaff = Auth::isAdmin() || (Auth::isInstructor() && (int)$problem['created_by'] === Auth::id());
 if ($vis === 'hidden' && !$isStaff) {
@@ -66,7 +92,7 @@ if ($vis === 'hidden' && !$isStaff) {
     exit;
 }
 if ($vis === 'exam_only' && !$isStaff) {
-    // Chỉ cho phép sinh viên thuộc ít nhất 1 lớp học/phòng thi
+    // Kiểm tra trong bảng classroom_members xem sinh viên có thuộc lớp/phòng thi nào không
     $allowedExam = false;
     if ($currentUser) {
         $cmStmt = $pdo->prepare("SELECT COUNT(*) FROM classroom_members WHERE user_id = ?");
@@ -79,7 +105,8 @@ if ($vis === 'exam_only' && !$isStaff) {
     }
 }
 
-// 2. Lấy các ca kiểm thử ví dụ công khai (is_sample = 1)
+// 2. Lấy danh sách các ca kiểm thử ví dụ công khai (is_sample = 1) của phiên bản hiện tại để hiển thị trên đề bài
+// Lưu ý: tuyệt đối không truy vấn test chấm kín (is_hidden = 1) ở trang này để bảo mật đáp án
 $sampleStmt = $pdo->prepare("
     SELECT case_order, input_data, expected_output
     FROM test_cases
@@ -89,7 +116,7 @@ $sampleStmt = $pdo->prepare("
 $sampleStmt->execute(['vid' => $problem['version_id']]);
 $samples = $sampleStmt->fetchAll();
 
-// 3. Khôi phục bản nháp nếu đã lưu trước đó
+// 3. Khởi tạo mã nguồn mẫu (starter templates) cho Python/C++ và khôi phục bản nháp gần nhất (nếu người dùng đã đăng nhập)
 $defaultLang = 'python';
 $initialCode = "";
 $starterTemplates = [
@@ -98,6 +125,7 @@ $starterTemplates = [
 ];
 
 if ($currentUser) {
+    // Tìm bản nháp được cập nhật gần nhất trong bảng code_drafts cho (user_id, problem_id)
     $draftStmt = $pdo->prepare("
         SELECT language, source_code 
         FROM code_drafts 
@@ -108,16 +136,18 @@ if ($currentUser) {
     $draftStmt->execute(['uid' => $currentUser['id'], 'pid' => $problemId]);
     $draft = $draftStmt->fetch();
     if ($draft) {
+        // Nếu có bản nháp -> khôi phục lại đúng ngôn ngữ và mã nguồn đã lưu
         $defaultLang = $draft['language'];
         $initialCode = $draft['source_code'];
     } else {
+        // Nếu chưa có bản nháp -> nạp khung code mẫu mặc định
         $initialCode = $starterTemplates[$defaultLang];
     }
 } else {
     $initialCode = $starterTemplates[$defaultLang];
 }
 
-// 4. Lịch sử bài nộp của user đối với bài tập này
+// 4. Lấy tối đa 10 lần nộp bài gần nhất của người dùng hiện tại cho bài tập này (hiển thị ở tab "Lịch sử Nộp bài")
 $userSubmissions = [];
 if ($currentUser) {
     $subHistStmt = $pdo->prepare("
@@ -131,12 +161,17 @@ if ($currentUser) {
     $userSubmissions = $subHistStmt->fetchAll();
 }
 
+// Thiết lập tiêu đề trang và nạp khung header + sidebar chung
 $pageTitle = 'Giải bài: ' . $problem['title'];
 require_once __DIR__ . '/includes/header.php';
 require_once __DIR__ . '/includes/sidebar.php';
 ?>
 
-<!-- CodeMirror 5 Local Assets (Offline Ready, 0ms latency) -->
+<!-- ========================================================================= -->
+<!-- PHẦN 2: GIAO DIỆN IDE TRỰC TUYẾN 2 CỘT (ĐỀ BÀI | TRÌNH SOẠN CODE & CONSOLE) -->
+<!-- ========================================================================= -->
+
+<!-- Nạp thư viện CodeMirror 5 lưu nội bộ (chạy offline không cần Internet): giao diện Dracula, tô màu cú pháp Python/C++, đóng mở ngoặc tự động -->
 <link rel="stylesheet" href="/BaiTapLon/assets/vendor/codemirror/codemirror.min.css">
 <link rel="stylesheet" href="/BaiTapLon/assets/vendor/codemirror/dracula.min.css">
 <script src="/BaiTapLon/assets/vendor/codemirror/codemirror.min.js"></script>
@@ -145,18 +180,20 @@ require_once __DIR__ . '/includes/sidebar.php';
 <script src="/BaiTapLon/assets/vendor/codemirror/matchbrackets.min.js"></script>
 <script src="/BaiTapLon/assets/vendor/codemirror/closebrackets.min.js"></script>
 
+<!-- Khung toàn màn hình (chừa lề trái 64 cho Sidebar, chia thành vùng làm việc chính + thanh trạng thái dưới đáy) -->
 <div class="pl-64 w-full h-screen flex flex-col overflow-hidden">
   
-  <!-- Không gian làm bài chia đôi 2 cột -->
+  <!-- Không gian làm bài chia đôi 2 cột ngang -->
   <div class="flex-1 flex overflow-hidden w-full">
     
-    <!-- ==================== CỘT TRÁI (42%): ĐỀ BÀI & MÔ TẢ ==================== -->
+    <!-- ==================== CỘT TRÁI (42%): ĐỀ BÀI & LỊCH SỬ NỘP BÀI ==================== -->
     <div class="w-[42%] h-full flex flex-col border-r border-white/10 glass-panel overflow-hidden shrink-0">
       
-      <!-- Header đề bài & Tabs -->
+      <!-- Phần đầu cố định: Huy hiệu độ khó, phiên bản bộ test, tiêu đề, giới hạn tài nguyên & nút chuyển Tab -->
       <div class="p-6 border-b border-white/10 space-y-3 shrink-0 bg-white/[0.01]">
         <div class="flex items-center space-x-2 text-xs">
           <?php
+            // Chọn màu sắc huy hiệu tương ứng với mức độ khó (Easy = xanh, Medium = vàng, Hard = đỏ)
             $diffBadge = match($problem['difficulty']) {
               'Easy'   => 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30',
               'Medium' => 'bg-amber-500/15 text-amber-400 border-amber-500/30',
@@ -179,7 +216,7 @@ require_once __DIR__ . '/includes/sidebar.php';
           #<?= $problem['id'] ?>. <?= Security::escape($problem['title']) ?>
         </h1>
 
-        <!-- Giới hạn chạy & Bộ nhớ -->
+        <!-- Hiển thị giới hạn thời gian chạy (ms), bộ nhớ tối đa (quy đổi từ KB sang MB) và nguồn bài -->
         <div class="flex items-center space-x-4 text-xs font-mono text-slate-400 pt-1">
           <div class="flex items-center space-x-1.5" title="Giới hạn thời gian">
             <i class="fa-regular fa-clock text-cyan-400"></i>
@@ -194,7 +231,7 @@ require_once __DIR__ . '/includes/sidebar.php';
           </div>
         </div>
 
-        <!-- Tab chuyển đổi Đề bài vs Lịch sử nộp -->
+        <!-- 2 nút chuyển đổi nội dung Cột trái: Mô tả Đề bài vs Lịch sử Nộp bài (gọi hàm JS switchLeftTab) -->
         <div class="flex space-x-2 pt-2 border-t border-white/5">
           <button type="button" onclick="switchLeftTab('statement')" id="tab-btn-statement" 
             class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-cyan-500/10 text-cyan-300 border border-cyan-500/30">
@@ -207,12 +244,12 @@ require_once __DIR__ . '/includes/sidebar.php';
         </div>
       </div>
 
-      <!-- Nội dung Cột trái (Scrollable) -->
+      <!-- Vùng nội dung có thanh cuộn dọc độc lập của Cột trái -->
       <div class="flex-1 overflow-y-auto p-6 space-y-6 text-sm text-slate-300 leading-relaxed">
         
-        <!-- PANEL 1: MÔ TẢ ĐỀ BÀI -->
+        <!-- PANEL 1: CHI TIẾT MÔ TẢ ĐỀ BÀI, INPUT/OUTPUT, RÀNG BUỘC & TEST VÍ DỤ -->
         <div id="panel-statement" class="space-y-6">
-          <!-- Mô tả bài toán -->
+          <!-- Mô tả bài toán (dùng Security::escape chống mã độc HTML/JS XSS) -->
           <div>
             <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Đề bài</h3>
             <p class="whitespace-pre-line text-slate-200"><?= Security::escape($problem['description']) ?></p>
@@ -234,7 +271,7 @@ require_once __DIR__ . '/includes/sidebar.php';
             </div>
           </div>
 
-          <!-- Ràng buộc -->
+          <!-- Ràng buộc dữ liệu -->
           <div>
             <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Giới hạn & Ràng buộc</h3>
             <div class="p-3 rounded-xl bg-white/[0.02] border border-white/5 text-amber-300 text-xs font-mono">
@@ -242,7 +279,7 @@ require_once __DIR__ . '/includes/sidebar.php';
             </div>
           </div>
 
-          <!-- Ca kiểm thử ví dụ công khai (Sample testcases) -->
+          <!-- Danh sách các ca kiểm thử ví dụ công khai (Sample testcases) kèm nút Copy Input -->
           <div class="space-y-4">
             <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Ví dụ minh họa công khai</h3>
             <?php foreach ($samples as $s): ?>
@@ -270,7 +307,7 @@ require_once __DIR__ . '/includes/sidebar.php';
           </div>
         </div>
 
-        <!-- PANEL 2: LỊCH SỬ NỘP BÀI CỦA USER -->
+        <!-- PANEL 2: LỊCH SỬ 10 BÀI NỘP GẦN NHẤT CỦA NGƯỜI DÙNG (Ẩn mặc định bằng class hidden) -->
         <div id="panel-history" class="space-y-3 hidden">
           <?php if (empty($userSubmissions)): ?>
             <div class="text-center py-12 text-slate-500 text-xs">
@@ -280,6 +317,7 @@ require_once __DIR__ . '/includes/sidebar.php';
           <?php else: ?>
             <?php foreach ($userSubmissions as $sub): ?>
               <?php
+                // Ánh xạ phán quyết sang class CSS màu huy hiệu (AC, WA, TLE, RE, CE, Pending)
                 $v = $sub['final_verdict'];
                 $badgeClass = match($v) {
                   'AC' => 'badge-ac',
@@ -307,6 +345,7 @@ require_once __DIR__ . '/includes/sidebar.php';
                   </div>
                 </div>
 
+                <!-- Nút tải lại chi tiết từng test case của bài nộp cũ vào khung Console bên phải -->
                 <button type="button" onclick="loadSubmissionResult(<?= $sub['id'] ?>)" 
                   class="btn-glass text-[11px] py-1 px-2.5 flex items-center space-x-1">
                   <i class="fa-solid fa-eye text-[10px]"></i>
@@ -321,12 +360,12 @@ require_once __DIR__ . '/includes/sidebar.php';
     </div>
 
 
-    <!-- ==================== CỘT PHẢI: TRÌNH SOẠN THẢO & CONSOLE ==================== -->
+    <!-- ==================== CỘT PHẢI (58%): TRÌNH SOẠN THẢO CODE & CONSOLE ==================== -->
     <div class="flex-1 min-w-0 h-full flex flex-col overflow-hidden bg-[#0A0D14]/80">
       
-      <!-- Top Action Bar -->
+      <!-- Thanh công cụ phía trên (Top Action Bar): Chọn ngôn ngữ + Lưu nháp / Chạy thử / Nộp bài -->
       <div class="h-16 px-6 border-b border-white/10 flex items-center justify-between bg-black/40 shrink-0">
-        <!-- Chọn ngôn ngữ & Trạng thái lưu nháp -->
+        <!-- Chọn ngôn ngữ lập trình (Python / C++) & chỉ báo thời điểm lưu nháp -->
         <div class="flex items-center space-x-3">
           <select id="code-language" onchange="changeLanguage(this.value)" 
             class="glass-input rounded-lg py-1.5 px-3 text-xs font-mono font-semibold text-cyan-300 bg-slate-900 border border-white/15 focus:border-cyan-400">
@@ -340,7 +379,7 @@ require_once __DIR__ . '/includes/sidebar.php';
           </span>
         </div>
 
-        <!-- Nút hành động: Lưu nháp, Chạy thử, Nộp bài -->
+        <!-- 3 nút chức năng chính: Lưu nháp (saveDraft), Chạy thử (runCustomTest), Nộp bài (submitSolution) -->
         <div class="flex items-center space-x-2">
           <button type="button" onclick="saveDraft()" title="Lưu nháp trên trình duyệt" 
             class="btn-glass text-xs py-2 px-3 flex items-center space-x-1.5">
@@ -362,16 +401,16 @@ require_once __DIR__ . '/includes/sidebar.php';
         </div>
       </div>
 
-      <!-- Vùng soạn thảo mã nguồn (Code Editor với Syntax Highlighting & CodeMirror) -->
+      <!-- Vùng soạn thảo mã nguồn: thẻ <textarea id="code-editor"> sẽ được thư viện CodeMirror biến hóa thành trình soạn code chuyên nghiệp -->
       <div class="flex-1 min-h-0 relative flex flex-col bg-[#070A0F] overflow-hidden">
         <textarea id="code-editor" spellcheck="false" 
           class="w-full h-full bg-[#070A0F] text-slate-100 font-mono text-sm p-4 resize-none outline-none leading-relaxed border-none focus:ring-0"><?= Security::escape($initialCode) ?></textarea>
       </div>
 
-      <!-- ==================== CỘT DƯỚI: TABBED CONSOLE (40% chiều cao) ==================== -->
+      <!-- ==================== KHỐI DƯỚI: CONSOLE 2 TAB (CHẠY THỬ & CHẤM BÀI) ==================== -->
       <div class="h-64 border-t border-white/10 flex flex-col bg-black/60 shrink-0">
         
-        <!-- Console Tabs Header -->
+        <!-- Thanh tiêu đề 2 tab Console và trạng thái tổng quan bên phải (#console-meta) -->
         <div class="h-10 px-4 border-b border-white/10 flex items-center justify-between bg-white/[0.02]">
           <div class="flex space-x-1">
             <button type="button" onclick="switchConsoleTab('custom')" id="console-tab-custom" 
@@ -392,10 +431,10 @@ require_once __DIR__ . '/includes/sidebar.php';
           </div>
         </div>
 
-        <!-- Console Content -->
+        <!-- Vùng hiển thị nội dung của 2 tab Console -->
         <div class="flex-1 overflow-hidden p-3 relative">
           
-          <!-- TAB 1: CUSTOM TESTCASE -->
+          <!-- TAB 1: CHẠY THỬ VỚI DỮ LIỆU TỰ NHẬP (Chia đôi: trái nhập stdin, phải xem stdout/stderr) -->
           <div id="console-panel-custom" class="h-full flex space-x-3">
             <div class="w-1/2 flex flex-col">
               <span class="text-[10px] uppercase font-bold text-slate-500 mb-1">stdin tự nhập</span>
@@ -410,9 +449,9 @@ require_once __DIR__ . '/includes/sidebar.php';
             </div>
           </div>
 
-          <!-- TAB 2: JUDGING QUEUE & REALTIME EXECUTION -->
+          <!-- TAB 2: THEO DÕI TIẾN TRÌNH CHẤM BÀI THỜI GIAN THỰC (Hiển thị phán quyết tổng & lưới từng test case) -->
           <div id="console-panel-judging" class="h-full flex flex-col space-y-2 overflow-y-auto hidden">
-            <!-- Header kết quả chung -->
+            <!-- Thanh tóm tắt kết quả chấm tổng thể (Verdict, số test pass, Run ID, thời gian) -->
             <div id="judging-summary" class="p-3 rounded-xl bg-white/5 border border-white/10 flex items-center justify-between text-xs">
               <div class="flex items-center space-x-3">
                 <span id="verdict-banner" class="px-2.5 py-1 rounded text-xs font-black font-mono badge-pending">
@@ -427,7 +466,7 @@ require_once __DIR__ . '/includes/sidebar.php';
               </div>
             </div>
 
-            <!-- Danh sách từng ca kiểm thử (Test Cases Grid) -->
+            <!-- Lưới hiển thị kết quả từng ca kiểm thử (được JS tạo động trong hàm renderTestcasesGrid) -->
             <div id="testcases-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2 pt-1">
               <!-- Sẽ được điền tự động qua JavaScript khi có kết quả -->
             </div>
@@ -441,7 +480,7 @@ require_once __DIR__ . '/includes/sidebar.php';
 
   </div>
 
-  <!-- Status Bar IDE Chuyên nghiệp dưới đáy Workspace -->
+  <!-- Thanh trạng thái IDE dưới đáy màn hình (gợi ý phím tắt Ctrl+Enter nộp bài & thông tin phiên bản) -->
   <div class="h-7 px-4 border-t border-white/10 bg-[#07090E] flex items-center justify-between text-[11px] text-slate-500 shrink-0">
     <div class="flex items-center space-x-4">
       <span class="flex items-center space-x-1.5"><i class="fa-solid fa-code-branch text-cyan-400"></i><span class="text-slate-400">Nhom1 IDE</span></span>
@@ -458,14 +497,19 @@ require_once __DIR__ . '/includes/sidebar.php';
 
 </div>
 
-<!-- JavaScript Điều khiển Trình Soạn Thảo & Tương Tác API -->
+<!-- ========================================================================= -->
+<!-- PHẦN 3: JAVASCRIPT ĐIỀU KHIỂN CODEMIRROR, TÔ LỖI & GỌI API CHẤM BÀI        -->
+<!-- ========================================================================= -->
 <script>
+  // Truyền các hằng số từ PHP sang JavaScript: ID bài tập và bộ mã mẫu (starter templates) của Python/C++
   const PROBLEM_ID = <?= $problemId ?>;
   const STARTER_TEMPLATES = <?= json_encode($starterTemplates) ?>;
+  // Lưu ID bài nộp hiện đang theo dõi và bộ đếm hẹn giờ Polling (setInterval)
   let currentSubmissionId = null;
   let pollingInterval = null;
 
-  // Khởi tạo CodeMirror Trình soạn thảo chuyên nghiệp (Syntax Highlighting, Auto Close/Match Brackets, Auto Indent)
+  // Khởi tạo trình soạn thảo CodeMirror từ thẻ <textarea id="code-editor">
+  // Hỗ trợ tô màu cú pháp, đánh số dòng, tự động đóng ngoặc, thụt lề 4 dấu cách và phím tắt Ctrl+Enter
   const codeTextarea = document.getElementById('code-editor');
   const initialLang = document.getElementById('code-language').value;
   let cmEditor = null;
@@ -483,6 +527,7 @@ require_once __DIR__ . '/includes/sidebar.php';
       smartIndent: true,         // Thụt lề ngay lập tức sau dấu : hoặc {
       lineWrapping: false,
       extraKeys: {
+        // Phím Tab: thụt lề khối đang chọn hoặc chèn 4 khoảng trắng
         "Tab": function(cm) {
           if (cm.somethingSelected()) {
             cm.indentSelection("add");
@@ -490,20 +535,23 @@ require_once __DIR__ . '/includes/sidebar.php';
             cm.replaceSelection("    ", "end");
           }
         },
+        // Phím Shift+Tab: giảm thụt lề khối đang chọn
         "Shift-Tab": function(cm) {
           cm.indentSelection("subtract");
         },
+        // Phím tắt Ctrl+Enter: gọi nộp bài nhanh ngay trong trình soạn thảo
         "Ctrl-Enter": function() {
           submitSolution();
         }
       }
     });
 
+    // Căn chỉnh CodeMirror phủ kín vùng soạn thảo và tự vẽ lại khi người dùng đổi kích thước cửa sổ
     cmEditor.setSize('100%', '100%');
     setTimeout(() => cmEditor.refresh(), 50);
     window.addEventListener('resize', () => { if (cmEditor) cmEditor.refresh(); });
   } else {
-    // Fallback nếu CodeMirror chưa kịp nạp
+    // Chế độ dự phòng (Fallback) nếu thư viện CodeMirror không nạp được: vẫn hỗ trợ nhấn Tab chèn 4 dấu cách trên textarea thường
     codeTextarea.addEventListener('keydown', function(e) {
       if (e.key === 'Tab') {
         e.preventDefault();
@@ -515,10 +563,12 @@ require_once __DIR__ . '/includes/sidebar.php';
     });
   }
 
+  // Hàm đọc toàn bộ mã nguồn hiện có trong trình soạn thảo (tương thích cả CodeMirror lẫn textarea dự phòng)
   function getEditorValue() {
     return cmEditor ? cmEditor.getValue() : codeTextarea.value;
   }
 
+  // Hàm ghi đè nội dung mã nguồn vào trình soạn thảo (dùng khi đổi ngôn ngữ lập trình)
   function setEditorValue(val) {
     if (cmEditor) {
       cmEditor.setValue(val);
@@ -527,9 +577,10 @@ require_once __DIR__ . '/includes/sidebar.php';
     }
   }
 
-  // Quản lý báo đỏ dòng lỗi
+  // Biến lưu tham chiếu dòng đang được tô nền đỏ (cm-error-line) khi code báo lỗi cú pháp/thực thi
   let currentErrorLineHandle = null;
 
+  // Hàm xóa vệt báo đỏ dòng lỗi trước đó trên trình soạn thảo CodeMirror
   function clearErrorHighlight() {
     if (cmEditor && currentErrorLineHandle !== null) {
       cmEditor.removeLineClass(currentErrorLineHandle, 'background', 'cm-error-line');
@@ -537,7 +588,7 @@ require_once __DIR__ . '/includes/sidebar.php';
     }
   }
 
-  // Tự động xóa vệt đỏ khi người dùng gõ sửa code
+  // Lắng nghe sự kiện gõ phím: ngay khi người dùng sửa code thì tự động tắt vệt báo lỗi cũ
   if (cmEditor) {
     cmEditor.on('change', function() {
       clearErrorHighlight();
@@ -546,25 +597,27 @@ require_once __DIR__ . '/includes/sidebar.php';
     codeTextarea.addEventListener('input', clearErrorHighlight);
   }
 
-  // Hàm trích xuất và báo đỏ dòng lỗi từ log kết quả thực thi
+  // Hàm phân tích chuỗi log lỗi (stderr / compiler_message) bằng biểu thức chính quy (Regex)
+  // để tìm số dòng bị lỗi, tô nền đỏ dòng đó và cuộn con trỏ tới đúng vị trí lỗi
   function highlightErrorFromLog(logText) {
     if (!logText || !cmEditor) return;
     clearErrorHighlight();
 
     let errorLine = null;
 
-    // Pattern 1 (Python): File "<stdin>", line 3 hoặc line 12
+    // Mẫu nhận diện lỗi Python (VD: File "<stdin>", line 3)
     const pyMatch = logText.match(/line (\d+)/i);
     if (pyMatch && pyMatch[1]) {
       errorLine = parseInt(pyMatch[1], 10);
     }
 
-    // Pattern 2 (C++ G++): solution.cpp:14:5: error: hoặc :(\d+):(\d+): error
+    // Mẫu nhận diện lỗi biên dịch C++ G++ (VD: solution.cpp:14:5: error: ...)
     const cppMatch = logText.match(/:(\d+):(?:\d+:)?\s*(?:fatal )?error/i);
     if (cppMatch && cppMatch[1]) {
       errorLine = parseInt(cppMatch[1], 10);
     }
 
+    // Nếu trích xuất được số dòng hợp lệ -> tô đỏ nền dòng (chỉ số CodeMirror đếm từ 0 nên trừ 1) và cuộn tới đó
     if (errorLine !== null && errorLine > 0 && errorLine <= cmEditor.lineCount()) {
       const lineIdx = errorLine - 1;
       currentErrorLineHandle = cmEditor.addLineClass(lineIdx, 'background', 'cm-error-line');
@@ -574,14 +627,15 @@ require_once __DIR__ . '/includes/sidebar.php';
     }
   }
 
-  // Tự động sinh Idempotency Key duy nhất cho mỗi lượt bấm nộp mới
+  // Hàm sinh khóa Idempotency Key ngẫu nhiên duy nhất cho mỗi lượt nộp bài
+  // Tác dụng: nếu người dùng bấm đúp nút "Nộp bài" hoặc mạng chập chờn gửi lại request, máy chủ dựa vào khóa này để không tạo 2 bài nộp trùng nhau
   function generateIdempotencyKey() {
     return 'sub_' + Date.now() + '_' + Math.random().toString(36).substring(2, 10);
   }
 
   let activeIdempotencyKey = generateIdempotencyKey();
 
-  // Chuyển đổi tab bên trái (Đề bài / Lịch sử)
+  // Hàm chuyển đổi giữa 2 tab bên Cột trái: 'statement' (Mô tả Đề bài) và 'history' (Lịch sử Nộp bài)
   function switchLeftTab(tab) {
     const btnStatement = document.getElementById('tab-btn-statement');
     const btnHistory = document.getElementById('tab-btn-history');
@@ -601,7 +655,7 @@ require_once __DIR__ . '/includes/sidebar.php';
     }
   }
 
-  // Chuyển đổi tab Console (Custom testcase / Judging)
+  // Hàm chuyển đổi giữa 2 tab ở khung Console bên dưới: 'custom' (Chạy thử) và 'judging' (Tiến trình chấm bài)
   function switchConsoleTab(tab) {
     const tabCustom = document.getElementById('console-tab-custom');
     const tabJudging = document.getElementById('console-tab-judging');
@@ -621,7 +675,7 @@ require_once __DIR__ . '/includes/sidebar.php';
     }
   }
 
-  // Thay đổi ngôn ngữ
+  // Hàm xử lý khi người dùng đổi ngôn ngữ lập trình (Python <-> C++): xác nhận, nạp mã mẫu và đổi chế độ tô màu cú pháp CodeMirror
   function changeLanguage(lang) {
     if (confirm("Chuyển ngôn ngữ sẽ nạp mã mẫu mặc định nếu bạn chưa lưu nháp. Bạn có muốn tiếp tục?")) {
       const template = STARTER_TEMPLATES[lang] || '';
@@ -634,14 +688,14 @@ require_once __DIR__ . '/includes/sidebar.php';
     }
   }
 
-  // Sao chép văn bản
+  // Hàm sao chép nhanh dữ liệu ví dụ (stdin) vào khay nhớ tạm (Clipboard) của máy tính
   function copyText(text) {
     navigator.clipboard.writeText(text).then(() => {
       showToast('Đã sao chép vào bộ nhớ tạm!', 'success');
     });
   }
 
-  // 1. LƯU BẢN NHÁP
+  // 1. HÀM LƯU BẢN NHÁP MÃ NGUỒN: gửi mã hiện tại lên API /BaiTapLon/api/run_test.php (action = 'draft') để lưu vào bảng code_drafts
   async function saveDraft() {
     const code = getEditorValue();
     const lang = document.getElementById('code-language').value;
@@ -659,6 +713,7 @@ require_once __DIR__ . '/includes/sidebar.php';
 
     const data = await res.json();
     if (res.ok && data.success) {
+      // Cập nhật nhãn thời gian lưu nháp trên thanh công cụ
       const now = new Date().toLocaleTimeString();
       document.getElementById('draft-text').innerText = `Đã lưu nháp (${now})`;
       showToast('Bản nháp đã được lưu an toàn!', 'success');
@@ -667,7 +722,7 @@ require_once __DIR__ . '/includes/sidebar.php';
     }
   }
 
-  // 2. CHẠY THỬ VỚI CUSTOM INPUT
+  // 2. HÀM CHẠY THỬ VỚI CUSTOM INPUT: gửi mã nguồn + stdin tự nhập lên API run_test.php (action = 'both': vừa lưu nháp vừa chạy thử trong Sandbox)
   async function runCustomTest() {
     const code = getEditorValue();
     const lang = document.getElementById('code-language').value;
@@ -680,6 +735,7 @@ require_once __DIR__ . '/includes/sidebar.php';
       return;
     }
 
+    // Tự động chuyển Console sang tab "Dữ liệu chạy thử" và hiện trạng thái đang thực thi
     switchConsoleTab('custom');
     outBox.innerHTML = '<span class="text-cyan-400"><i class="fa-solid fa-spinner fa-spin mr-1"></i>Đang thực thi mã nguồn trong môi trường cách ly...</span>';
     meta.innerText = 'Đang chạy thử...';
@@ -704,6 +760,7 @@ require_once __DIR__ . '/includes/sidebar.php';
         return;
       }
 
+      // Hiển thị thời gian chạy, kết quả stdout và lỗi stderr (escapeHtml để không bị hiểu nhầm thẻ HTML trong output)
       const exec = data.execution;
       meta.innerText = `Hoàn tất (${exec.execution_time_ms}ms) - Verdict: ${exec.verdict}`;
 
@@ -734,7 +791,7 @@ require_once __DIR__ . '/includes/sidebar.php';
     }
   }
 
-  // 3. NỘP BÀI CHÍNH THỨC (IDEMPOTENCY & CHẤM THỜI GIAN THỰC)
+  // 3. HÀM NỘP BÀI CHÍNH THỨC: gửi mã nguồn kèm idempotency_key tới /BaiTapLon/api/submit.php, sau đó bật cơ chế Polling theo dõi tiến trình chấm
   async function submitSolution() {
     const code = getEditorValue();
     const lang = document.getElementById('code-language').value;
@@ -744,10 +801,12 @@ require_once __DIR__ . '/includes/sidebar.php';
       return;
     }
 
+    // Khóa tạm nút "Nộp bài" để tránh người dùng bấm liên tiếp trong lúc gửi
     const btnSubmit = document.getElementById('btn-submit');
     btnSubmit.disabled = true;
     btnSubmit.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>Đang nộp...';
 
+    // Mở tab "Tiến trình Chấm bài" ở Console bên dưới
     switchConsoleTab('judging');
     document.getElementById('judging-badge').classList.remove('hidden');
 
@@ -778,7 +837,7 @@ require_once __DIR__ . '/includes/sidebar.php';
       // Sinh key mới cho lần nộp tiếp theo (nếu người dùng bấm nộp lần nữa có chủ ý)
       activeIdempotencyKey = generateIdempotencyKey();
 
-      // Bắt đầu Polling theo dõi trạng thái chấm
+      // Bắt đầu Polling định kỳ gọi API kiểm tra trạng thái chấm của submission vừa tạo
       startJudgingPolling(currentSubmissionId);
 
     } catch (err) {
@@ -788,8 +847,10 @@ require_once __DIR__ . '/includes/sidebar.php';
     }
   }
 
-  // Polling lấy kết quả chấm
+  // Hàm Polling (hỏi thăm máy chủ định kỳ 1.2 giây/lần) tới /BaiTapLon/api/submission_status.php
+  // để cập nhật phán quyết tổng và lưới từng test case cho đến khi chấm xong
   function startJudgingPolling(subId) {
+    // Hủy bộ đếm Polling cũ (nếu đang chạy) để tránh chồng chéo nhiều vòng lặp cùng lúc
     if (pollingInterval) clearInterval(pollingInterval);
 
     const banner = document.getElementById('verdict-banner');
@@ -797,12 +858,14 @@ require_once __DIR__ . '/includes/sidebar.php';
     const metrics = document.getElementById('verdict-metrics');
     const grid = document.getElementById('testcases-grid');
 
+    // Đặt giao diện Console về trạng thái chờ chấm ban đầu
     banner.className = 'px-2.5 py-1 rounded text-xs font-black font-mono badge-pending';
     banner.innerText = 'CHỜ CHẤM...';
     progress.innerText = `Bài nộp #${subId} đang nằm trong hàng đợi worker...`;
     metrics.innerText = 'Trạng thái: Queued';
     grid.innerHTML = '';
 
+    // Hàm bất đồng bộ gọi API lấy trạng thái mới nhất của bài nộp
     const checkStatus = async () => {
       try {
         const res = await fetch(`/BaiTapLon/api/submission_status.php?id=${subId}`);
@@ -813,27 +876,28 @@ require_once __DIR__ . '/includes/sidebar.php';
         const runs = data.runs;
 
         if (runs.length > 0) {
+          // Lấy lượt chấm mới nhất (phần tử cuối cùng trong mảng runs)
           const latestRun = runs[runs.length - 1];
           metrics.innerText = `Lần chấm #${latestRun.run_number} (Run ID: #${latestRun.id}) • ${latestRun.max_time_ms}ms`;
 
-          // Cập nhật banner verdict
+          // Cập nhật banner phán quyết (AC/WA/TLE/RE/CE...) và tiến độ số test đã vượt qua
           const v = sub.final_verdict;
           banner.innerText = v;
           banner.className = `px-2.5 py-1 rounded text-xs font-black font-mono ${getBadgeClass(v)}`;
           progress.innerText = `Đã vượt qua: ${sub.pass_count}/${sub.total_cases} ca kiểm thử`;
 
-          // Render Grid từng testcase
+          // Vẽ lưới kết quả chi tiết của từng ca kiểm thử
           if (latestRun.case_results) {
             renderTestcasesGrid(latestRun.case_results);
           }
 
-          // Dừng polling khi đã có kết quả cuối cùng
+          // Khi không còn ở trạng thái Pending/Running -> dừng vòng lặp Polling và thông báo kết quả cuối
           if (v !== 'Pending' && v !== 'Running') {
             clearInterval(pollingInterval);
             document.getElementById('console-meta').innerText = `Kết quả: ${v}`;
             showToast(`Chấm bài hoàn tất: ${v} (${sub.pass_count}/${sub.total_cases})`, v === 'AC' ? 'success' : 'error');
 
-            // Báo đỏ dòng lỗi nếu gặp Compilation Error hoặc Runtime Error
+            // Báo đỏ dòng lỗi nếu gặp Compilation Error (CE) hoặc Runtime Error (RE)
             if (v === 'CE' || v === 'RE') {
               highlightErrorFromLog(latestRun.compiler_message || latestRun.system_error_log || '');
             } else {
@@ -846,12 +910,12 @@ require_once __DIR__ . '/includes/sidebar.php';
       }
     };
 
-    // Kiểm tra ngay lập tức và sau đó mỗi 1.2 giây
+    // Gọi kiểm tra ngay lập tức lần đầu, sau đó lặp lại mỗi 1200ms (1.2 giây)
     checkStatus();
     pollingInterval = setInterval(checkStatus, 1200);
   }
 
-  // Render các ca kiểm thử
+  // Hàm vẽ lưới các ô kết quả test case (#1, #2, ...) kèm phán quyết, thời gian chạy (ms) và biểu tượng mắt/ổ khóa (test mẫu vs test kín)
   function renderTestcasesGrid(caseResults) {
     const grid = document.getElementById('testcases-grid');
     grid.innerHTML = '';
@@ -874,11 +938,13 @@ require_once __DIR__ . '/includes/sidebar.php';
     });
   }
 
+  // Hàm xem lại chi tiết kết quả chấm của một bài nộp cũ trong tab "Lịch sử Nộp bài"
   function loadSubmissionResult(subId) {
     switchConsoleTab('judging');
     startJudgingPolling(subId);
   }
 
+  // Hàm tiện ích ánh xạ mã phán quyết (AC, WA, TLE, RE, CE, SE) sang class CSS màu sắc tương ứng
   function getBadgeClass(v) {
     switch (v) {
       case 'AC': return 'badge-ac';
@@ -891,6 +957,7 @@ require_once __DIR__ . '/includes/sidebar.php';
     }
   }
 
+  // Hàm mã hóa ký tự đặc biệt (&, <, >) thành thực thể HTML an toàn trước khi chèn stdout/stderr vào innerHTML (chống XSS)
   function escapeHtml(text) {
     if (!text) return '';
     return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");

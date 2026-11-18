@@ -1,38 +1,58 @@
 <?php
 /**
- * Nhom1 Online Judge - Quản lý Bài tập & Bộ dữ liệu kiểm tra
- * Dành riêng cho Giảng viên (Instructor) và Quản trị viên (Admin)
- * Phong cách Dark Glassmorphism, Neon Cyan Accent
+ * ============================================================================
+ * Nhom1 Online Judge - Quản lý Bài tập & Bộ dữ liệu kiểm tra (Problems & Testcases)
+ * ============================================================================
+ * MỤC ĐÍCH TRANG NÀY:
+ * - Dành riêng cho Giảng viên (Instructor) và Quản trị viên (Admin).
+ * - Quản lý toàn bộ vòng đời bài tập: Tạo bài mới kèm bộ test ban đầu, Chỉnh sửa thông tin/đề bài
+ *   (có thể phát hành thành phiên bản mới v(N+1) để giữ nguyên lịch sử đề cũ), Quản lý/Sửa bộ test case,
+ *   Nhập & thẩm định test case từ file ZIP/JSON (hỗ trợ đối chiếu lời giải chuẩn), và Xóa mềm/Xóa vĩnh viễn/Khôi phục.
+ *
+ * CẤU TRÚC FILE GỒM 3 PHẦN:
+ * - PHẦN 1 (PHP): Phân quyền, xử lý form POST tạo/sửa bài tập (dùng Transaction CSDL), đếm & truy vấn danh sách theo tab.
+ * - PHẦN 2 (HTML): Giao diện tổng quan, bảng danh sách bài tập (Hoạt động / Thùng rác) và 5 hộp thoại Modal.
+ * - PHẦN 3 (JavaScript): Quản lý đóng/mở Modal, tạo form test case động, gọi API lưu test case, nhập file ZIP/JSON và xóa/khôi phục.
  */
 
+// Bật chế độ kiểm tra kiểu dữ liệu nghiêm ngặt trong PHP
 declare(strict_types=1);
 
+// Nạp cấu hình kết nối CSDL, xác thực phân quyền (Auth) và công cụ bảo mật (Security)
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/core/Auth.php';
 require_once __DIR__ . '/core/Security.php';
 
-// Bắt buộc quyền Giảng viên hoặc Quản trị viên
+// Chặn sinh viên hoặc khách truy cập: bắt buộc phải là Admin hoặc Giảng viên (instructor)
 Auth::requireRoles(['admin', 'instructor']);
 
+// Lấy thông tin tài khoản đang đăng nhập và kết nối PDO tới MySQL
 $currentUser = Auth::user();
 $pdo = getDbConnection();
 
+// Biến lưu thông báo kết quả (thành công / lỗi) sau khi xử lý form POST
 $msgSuccess = '';
 $msgError = '';
 
-// Xử lý tạo / sửa bài tập
+// ============================================================================
+// PHẦN 1A: XỬ LÝ FORM POST TẠO BÀI TẬP MỚI VÀ CHỈNH SỬA BÀI TẬP
+// ============================================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $action = $_POST['action'];
 
+    // --- NHÁNH 1: TẠO BÀI TẬP MỚI (create_problem) ---
     if ($action === 'create_problem') {
+        // Chuẩn hóa mã slug: chuyển chữ thường, đổi mọi ký tự không phải chữ/số/gạch ngang thành '-', cắt '-' thừa hai đầu
         $slug = strtolower(trim((string)($_POST['slug'] ?? '')));
         $slug = preg_replace('/[^a-z0-9\-]/', '-', $slug);
         $slug = trim($slug, '-');
         $title = trim((string)($_POST['title'] ?? ''));
         $topic = trim((string)($_POST['topic'] ?? 'Cơ bản'));
+        // Kiểm tra giá trị độ khó và chế độ hiển thị theo danh sách hợp lệ (whitelist)
         $difficulty = in_array($_POST['difficulty'] ?? '', ['Easy', 'Medium', 'Hard'], true) ? $_POST['difficulty'] : 'Easy';
         $visibility = in_array($_POST['visibility'] ?? '', ['public', 'hidden', 'exam_only'], true) ? $_POST['visibility'] : 'public';
         $isPublic = ($visibility === 'public') ? 1 : 0;
+        // Ép giới hạn thời gian nằm trong [100ms, 10000ms] và bộ nhớ nằm trong [16MB, 1024MB] (lưu theo KB)
         $timeLimitMs = max(100, min(10000, (int)($_POST['time_limit_ms'] ?? 1000)));
         $memoryLimitKb = isset($_POST['memory_limit_kb']) && (int)$_POST['memory_limit_kb'] >= 16384
             ? min(1048576, (int)$_POST['memory_limit_kb'])
@@ -46,16 +66,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         if ($slug === '' || $title === '') {
             $msgError = 'Vui lòng nhập đầy đủ mã định danh (slug) và tiêu đề bài tập.';
         } else {
-            // Kiểm tra trùng slug
+            // Kiểm tra xem mã slug đã được bài tập nào dùng chưa (slug là duy nhất)
             $checkStmt = $pdo->prepare("SELECT id FROM problems WHERE slug = ?");
             $checkStmt->execute([$slug]);
             if ($checkStmt->fetch()) {
                 $msgError = "Mã slug '{$slug}' đã tồn tại trong hệ thống. Vui lòng chọn slug khác.";
             } else {
                 try {
+                    // Mở Transaction (giao dịch CSDL): đảm bảo 4 bước (thêm bài -> thêm v1 -> gắn v1 -> thêm test)
+                    // hoặc thành công hết, hoặc hoàn tác sạch (rollBack) nếu có lỗi giữa chừng
                     $pdo->beginTransaction();
 
-                    // 1. Thêm vào problems (kèm phân quyền hiển thị visibility)
+                    // Bước 1: Thêm bản ghi gốc vào bảng problems (kèm phân quyền hiển thị visibility)
                     $insertProb = $pdo->prepare("
                         INSERT INTO problems (slug, title, topic, difficulty, source_attribution, is_public, visibility, created_by)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
@@ -63,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     $insertProb->execute([$slug, $title, $topic, $difficulty, $sourceAttribution, $isPublic, $visibility, $currentUser['id']]);
                     $problemId = (int)$pdo->lastInsertId();
 
-                    // 2. Tạo phiên bản v1 ban đầu
+                    // Bước 2: Tạo phiên bản nội dung đề đầu tiên (version_number = 1) trong bảng problem_versions
                     $insertVer = $pdo->prepare("
                         INSERT INTO problem_versions (problem_id, version_number, description, input_description, output_description, constraints, time_limit_ms, memory_limit_kb, changelog, created_by)
                         VALUES (?, 1, ?, ?, ?, ?, ?, ?, 'Khởi tạo bài tập phiên bản ban đầu', ?)
@@ -74,11 +96,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     ]);
                     $versionId = (int)$pdo->lastInsertId();
 
-                    // 3. Cập nhật current_version_id
+                    // Bước 3: Trỏ cột current_version_id của bài tập vừa tạo tới phiên bản v1 này
                     $updateProb = $pdo->prepare("UPDATE problems SET current_version_id = ? WHERE id = ?");
                     $updateProb->execute([$versionId, $problemId]);
 
-                    // 4. Thêm các test case ban đầu (Hỗ trợ nhiều test cases)
+                    // Bước 4: Thu thập, chuẩn hóa xuống dòng (\r\n -> \n, xóa ký tự BOM UTF-8 ẩn) và lọc các test case hợp lệ
                     $rawTestCases = $_POST['test_cases'] ?? [];
                     $validTestCases = [];
 
@@ -87,6 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                             $in = str_replace(["\r\n", "\r"], "\n", preg_replace('/^\xEF\xBB\xBF/', '', (string)($tc['input_data'] ?? '')));
                             $out = str_replace(["\r\n", "\r"], "\n", preg_replace('/^\xEF\xBB\xBF/', '', (string)($tc['expected_output'] ?? '')));
                             if ($in !== '' || $out !== '') {
+                                // Phân loại test công khai (sample: hiển thị ở đề) hay test chấm kín (hidden: ẩn đáp án)
                                 $isSample = 0;
                                 $isHidden = 1;
                                 if (isset($tc['type'])) {
@@ -113,7 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         }
                     }
 
-                    // Tương thích ngược: kiểm tra sample_input / sample_output nếu mảng test_cases rỗng
+                    // Tương thích ngược: kiểm tra trường sample_input / sample_output cũ nếu mảng test_cases trống
                     if (empty($validTestCases)) {
                         $sampleInput = (string)($_POST['sample_input'] ?? '');
                         $sampleOutput = (string)($_POST['sample_output'] ?? '');
@@ -128,6 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         }
                     }
 
+                    // Ghi lần lượt từng test case hợp lệ vào bảng test_cases kèm thứ tự case_order (1, 2, 3...)
                     if (!empty($validTestCases)) {
                         $insertTc = $pdo->prepare("
                             INSERT INTO test_cases (problem_version_id, case_order, input_data, expected_output, is_sample, is_hidden, points, created_at)
@@ -146,10 +170,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         }
                     }
 
+                    // Xác nhận hoàn tất giao dịch lưu vào CSDL
                     $pdo->commit();
                     $tcCountMsg = count($validTestCases) > 0 ? " kèm " . count($validTestCases) . " test case" : "";
                     $msgSuccess = "Tạo bài tập '{$slug} - {$title}' thành công{$tcCountMsg}!";
                 } catch (Exception $e) {
+                    // Nếu có bất kỳ ngoại lệ nào -> hủy bỏ toàn bộ thay đổi chưa commit
                     if ($pdo->inTransaction()) {
                         $pdo->rollBack();
                     }
@@ -157,6 +183,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 }
             }
         }
+    // --- NHÁNH 2: CHỈNH SỬA BÀI TẬP HIỆN CÓ (edit_problem) ---
     } elseif ($action === 'edit_problem') {
         $problemId = (int)($_POST['problem_id'] ?? 0);
         $title = trim((string)($_POST['title'] ?? ''));
@@ -172,10 +199,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $inputDesc = trim((string)($_POST['input_description'] ?? ''));
         $outputDesc = trim((string)($_POST['output_description'] ?? ''));
         $constraints = trim((string)($_POST['constraints'] ?? ''));
+        // Nếu người dùng tích chọn ô "Phát hành thành phiên bản đề mới" -> tạo bản ghi v(N+1) thay vì sửa đè
         $createNewVersion = !empty($_POST['create_new_version']);
         $changelog = trim((string)($_POST['changelog'] ?? ''));
 
-        // Kiểm tra quyền
+        // Kiểm tra bài tập có tồn tại và người dùng có quyền quản lý bài này không (Admin hoặc đúng Giảng viên đã tạo)
         $probStmt = $pdo->prepare("SELECT created_by, current_version_id FROM problems WHERE id = ?");
         $probStmt->execute([$problemId]);
         $prob = $probStmt->fetch();
@@ -185,11 +213,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         } else {
             try {
                 $pdo->beginTransaction();
+                // Cập nhật các thông tin chung của bài tập trong bảng problems
                 $updProb = $pdo->prepare("UPDATE problems SET title = ?, topic = ?, difficulty = ?, visibility = ?, is_public = ? WHERE id = ?");
                 $updProb->execute([$title, $topic, $difficulty, $visibility, $isPublic, $problemId]);
 
                 if ($createNewVersion) {
-                    // Phát hành phiên bản đề mới v(N+1), bảo toàn 100% lịch sử phiên bản cũ
+                    // Chế độ 1: Phát hành phiên bản đề mới v(N+1), bảo toàn 100% lịch sử phiên bản cũ
                     $maxVerStmt = $pdo->prepare("SELECT COALESCE(MAX(version_number), 0) FROM problem_versions WHERE problem_id = ?");
                     $maxVerStmt->execute([$problemId]);
                     $newVerNum = (int)$maxVerStmt->fetchColumn() + 1;
@@ -205,7 +234,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     ]);
                     $newVerId = (int)$pdo->lastInsertId();
 
-                    // Sao chép toàn bộ test cases hiện hành sang phiên bản mới
+                    // Tự động nhân bản (INSERT ... SELECT) toàn bộ test cases của phiên bản cũ sang phiên bản mới
                     if (!empty($prob['current_version_id'])) {
                         $copyTc = $pdo->prepare("
                             INSERT INTO test_cases (problem_version_id, case_order, input_data, expected_output, is_sample, is_hidden, points, created_at)
@@ -217,9 +246,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         $copyTc->execute([$newVerId, $prob['current_version_id']]);
                     }
 
+                    // Cập nhật bài tập sử dụng phiên bản mới vừa phát hành
                     $pdo->prepare("UPDATE problems SET current_version_id = ? WHERE id = ?")->execute([$newVerId, $problemId]);
                     $msgSuccess = "Đã phát hành phiên bản đề mới v{$newVerNum} (giữ nguyên toàn bộ lịch sử đề cũ)!";
                 } elseif (!empty($prob['current_version_id'])) {
+                    // Chế độ 2: Cập nhật trực tiếp (In-place) nội dung vào phiên bản đề hiện hành
                     $updVer = $pdo->prepare("
                         UPDATE problem_versions 
                         SET description = ?, input_description = ?, output_description = ?, constraints = ?, time_limit_ms = ?, memory_limit_kb = ?
@@ -242,10 +273,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     }
 }
 
-// Bộ lọc theo tab: Đang hoạt động (active) hoặc Thùng rác (trash)
+// ============================================================================
+// PHẦN 1B: TRUY VẤN SỐ LƯỢNG & DANH SÁCH BÀI TẬP THEO TAB (HOẠT ĐỘNG / THÙNG RÁC)
+// ============================================================================
+
+// Xác định tab đang xem từ URL (?tab=active hoặc ?tab=trash)
 $currentTab = ($_GET['tab'] ?? 'active') === 'trash' ? 'trash' : 'active';
 
-// Đếm số lượng bài đang hoạt động và số lượng bài trong thùng rác
+// Nếu không phải Admin (tức là Giảng viên) -> chỉ đếm và chỉ hiển thị các bài tập do chính Giảng viên đó tạo
 $countParams = [];
 $creatorCondition = "";
 if (!Auth::isAdmin()) {
@@ -253,6 +288,7 @@ if (!Auth::isAdmin()) {
     $countParams[] = $currentUser['id'];
 }
 
+// Đếm số bài đang hoạt động (deleted_at IS NULL) và số bài đã xóa mềm trong thùng rác (deleted_at IS NOT NULL)
 $activeCountStmt = $pdo->prepare("SELECT COUNT(*) FROM problems p WHERE p.deleted_at IS NULL {$creatorCondition}");
 $activeCountStmt->execute($countParams);
 $activeCount = (int)$activeCountStmt->fetchColumn();
@@ -261,7 +297,7 @@ $trashCountStmt = $pdo->prepare("SELECT COUNT(*) FROM problems p WHERE p.deleted
 $trashCountStmt->execute($countParams);
 $trashCount = (int)$trashCountStmt->fetchColumn();
 
-// Truy vấn danh sách bài tập theo tab đang chọn
+// Xây dựng câu điều kiện WHERE tương ứng với tab hiện tại và quyền của người dùng
 $params = [];
 $whereClause = $currentTab === 'trash' ? "WHERE p.deleted_at IS NOT NULL" : "WHERE p.deleted_at IS NULL";
 if (!Auth::isAdmin()) {
@@ -269,6 +305,10 @@ if (!Auth::isAdmin()) {
     $params[] = $currentUser['id'];
 }
 
+// Truy vấn chi tiết danh sách bài tập kèm:
+// - Thông tin người tạo (LEFT JOIN users)
+// - Nội dung phiên bản hiện hành (LEFT JOIN problem_versions)
+// - 3 truy vấn con (Subquery) đếm số test công khai, số test chấm kín và tổng số lượt nộp bài
 $query = "
     SELECT 
         p.*,
@@ -294,14 +334,18 @@ $stmt = $pdo->prepare($query);
 $stmt->execute($params);
 $problems = $stmt->fetchAll();
 
+// Đặt tiêu đề trang và nạp khung header + sidebar chung
 $pageTitle = "Quản lý Đề & Bộ Test";
 require_once __DIR__ . '/includes/header.php';
 require_once __DIR__ . '/includes/sidebar.php';
 ?>
 
+<!-- ========================================================================= -->
+<!-- PHẦN 2: GIAO DIỆN HTML (THỐNG KÊ, BẢNG DANH SÁCH BÀI TẬP & 5 MODAL)       -->
+<!-- ========================================================================= -->
 <div class="pl-64 min-h-screen flex flex-col w-full">
   <main class="p-8 max-w-7xl w-full mx-auto space-y-8 flex-1">
-  <!-- Tiêu đề trang & Nút hành động -->
+  <!-- Khối tiêu đề trang & Nút mở Modal 1 ("Tạo bài tập mới") -->
   <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
     <div>
       <h1 class="text-3xl font-black tracking-tight text-white flex items-center gap-3">
@@ -320,7 +364,7 @@ require_once __DIR__ . '/includes/sidebar.php';
     </div>
   </div>
 
-  <!-- Thông báo trạng thái -->
+  <!-- Khối hiển thị thông báo kết quả sau khi submit form POST (tạo/sửa bài tập) -->
   <?php if ($msgSuccess !== ''): ?>
     <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center space-x-3">
       <i class="fa-solid fa-circle-check text-lg"></i>
@@ -335,7 +379,7 @@ require_once __DIR__ . '/includes/sidebar.php';
     </div>
   <?php endif; ?>
 
-  <!-- Bảng thống kê sơ bộ -->
+  <!-- Khối 3 thẻ thống kê nhanh: Số bài tập đang hiển thị, Tổng số Test Cases và Tổng lượt nộp tích lũy -->
   <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
     <div class="glass-panel p-6 rounded-2xl flex items-center space-x-4 border border-white/5">
       <div class="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 flex items-center justify-center text-xl">
@@ -370,9 +414,9 @@ require_once __DIR__ . '/includes/sidebar.php';
     </div>
   </div>
 
-  <!-- Danh sách bài tập -->
+  <!-- Bảng danh sách bài tập kèm 2 tab chuyển đổi: Đang hoạt động (?tab=active) và Thùng rác (?tab=trash) -->
   <div class="glass-panel rounded-2xl border border-white/10 overflow-hidden shadow-2xl">
-    <!-- Tabs: Đang hoạt động vs Thùng rác -->
+    <!-- Thanh chuyển Tab: Đang hoạt động vs Thùng rác / Đã xóa -->
     <div class="px-6 py-4 border-b border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/[0.02]">
       <div class="flex items-center space-x-2">
         <a href="?tab=active" class="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-2 <?= $currentTab === 'active' ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm' : 'bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-transparent' ?>">
@@ -424,6 +468,7 @@ require_once __DIR__ . '/includes/sidebar.php';
           <?php else: ?>
             <?php foreach ($problems as $p): ?>
               <tr class="hover:bg-white/[0.02] transition-colors group" id="problem-row-<?= (int)$p['id'] ?>">
+                <!-- Cột Slug (nếu ở tab hoạt động thì bấm vào mở ngay trang làm bài solve.php) -->
                 <td class="py-4 px-6 font-mono font-bold <?= $currentTab === 'trash' ? 'text-slate-400 line-through' : 'text-cyan-400' ?>">
                   <?php if ($currentTab === 'trash'): ?>
                     <span><?= htmlspecialchars($p['slug']) ?></span>
@@ -433,12 +478,14 @@ require_once __DIR__ . '/includes/sidebar.php';
                     </a>
                   <?php endif; ?>
                 </td>
+                <!-- Cột Tiêu đề, huy hiệu phân quyền hiển thị (Công khai / Ẩn / Phòng thi) & giới hạn tài nguyên -->
                 <td class="py-4 px-6">
                   <div class="flex items-center space-x-2 flex-wrap gap-y-1">
                     <span class="font-semibold <?= $currentTab === 'trash' ? 'text-slate-300' : 'text-white group-hover:text-cyan-300' ?> transition-colors">
                       <?= htmlspecialchars($p['title']) ?>
                     </span>
                     <?php
+                      // Hiển thị nhãn phân quyền tương ứng với cột visibility
                       $vis = $p['visibility'] ?? ($p['is_public'] ? 'public' : 'hidden');
                       if ($vis === 'hidden'):
                     ?>
@@ -464,6 +511,7 @@ require_once __DIR__ . '/includes/sidebar.php';
                     <?php endif; ?>
                   </div>
                 </td>
+                <!-- Cột Người tạo (chỉ hiện với tài khoản Admin vì Admin xem bài của tất cả Giảng viên) -->
                 <?php if (Auth::isAdmin()): ?>
                   <td class="py-4 px-6">
                     <div class="flex items-center space-x-2.5">
@@ -515,6 +563,7 @@ require_once __DIR__ . '/includes/sidebar.php';
                 <td class="py-4 px-6 text-center font-mono text-slate-300">
                   <?= $p['total_submissions'] ?>
                 </td>
+                <!-- Cột Thao tác: ở Thùng rác có Khôi phục / Xóa vĩnh viễn; ở tab Hoạt động có Sửa, Test Cases, Đối chiếu Rejudge, Giải thử, Xóa -->
                 <td class="py-4 px-6 text-right space-x-1.5 whitespace-nowrap">
                   <?php if ($currentTab === 'trash'): ?>
                     <!-- Khôi phục bài tập từ Thùng rác -->
@@ -546,7 +595,7 @@ require_once __DIR__ . '/includes/sidebar.php';
                       </span>
                     <?php endif; ?>
                   <?php else: ?>
-                    <!-- Sửa thông tin cơ bản -->
+                    <!-- Sửa thông tin cơ bản (mở Modal 2: editModal) -->
                     <button 
                       onclick='openEditModal(<?= json_encode($p, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) ?>)'
                       class="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white transition-colors cursor-pointer"
@@ -555,7 +604,7 @@ require_once __DIR__ . '/includes/sidebar.php';
                       <i class="fa-solid fa-pen-to-square"></i>
                     </button>
 
-                    <!-- Sửa & Quản lý Test Cases -->
+                    <!-- Sửa & Quản lý Test Cases (mở Modal 3: testcasesModal) -->
                     <button 
                       type="button"
                       onclick='openTestcasesModal(<?= $p['id'] ?>, <?= htmlspecialchars(json_encode($p['title']), ENT_QUOTES, 'UTF-8') ?>, <?= (int)$p['total_submissions'] ?>, <?= (int)($p['current_version_number'] ?? 1) ?>)'
@@ -565,7 +614,7 @@ require_once __DIR__ . '/includes/sidebar.php';
                       <i class="fa-solid fa-vial"></i>
                     </button>
 
-                    <!-- Tạo phiên bản mới / Quản lý testcase -->
+                    <!-- Chuyển tới trang Quản lý phiên bản & Đối chiếu Rejudge -->
                     <a 
                       href="/BaiTapLon/rejudge_compare.php?problem_id=<?= $p['id'] ?>"
                       class="p-2 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 hover:text-cyan-300 border border-cyan-500/30 transition-colors inline-block"
@@ -574,7 +623,7 @@ require_once __DIR__ . '/includes/sidebar.php';
                       <i class="fa-solid fa-code-compare"></i>
                     </a>
 
-                    <!-- Thử giải bài -->
+                    <!-- Mở không gian giải bài (solve.php) để Giảng viên/Admin tự kiểm tra -->
                     <a 
                       href="/BaiTapLon/solve.php?id=<?= $p['id'] ?>"
                       class="p-2 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300 border border-emerald-500/30 transition-colors inline-block"
@@ -583,7 +632,7 @@ require_once __DIR__ . '/includes/sidebar.php';
                       <i class="fa-solid fa-play"></i>
                     </a>
 
-                    <!-- Xóa bài tập -->
+                    <!-- Xóa bài tập (mở Modal 5: deleteProblemModal hỗ trợ xóa mềm / xóa vĩnh viễn) -->
                     <button 
                       type="button"
                       onclick='openDeleteModal(<?= (int)$p['id'] ?>, <?= htmlspecialchars(json_encode($p['title']), ENT_QUOTES, 'UTF-8') ?>, <?= htmlspecialchars(json_encode($p['slug']), ENT_QUOTES, 'UTF-8') ?>, <?= (int)$p['total_submissions'] ?>, false)'
@@ -603,7 +652,11 @@ require_once __DIR__ . '/includes/sidebar.php';
   </div>
 </div>
 
-<!-- MODAL 1: TẠO BÀI TẬP MỚI -->
+<!-- ========================================================================= -->
+<!-- MODAL 1: TẠO BÀI TẬP MỚI (Form POST action="create_problem")              -->
+<!-- Chứa các trường thông tin bài toán, giới hạn chạy/bộ nhớ, phân quyền      -->
+<!-- hiển thị và vùng thêm nhiều Test Cases khởi tạo (hoặc nhập từ ZIP/JSON)   -->
+<!-- ========================================================================= -->
 <div id="createModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm hidden p-4 overflow-y-auto">
   <div class="glass-panel w-full max-w-3xl rounded-2xl border border-white/20 p-6 my-8 space-y-5 shadow-2xl flex flex-col max-h-[92vh]">
     <div class="flex items-center justify-between border-b border-white/10 pb-4 shrink-0">
@@ -728,7 +781,11 @@ require_once __DIR__ . '/includes/sidebar.php';
   </div>
 </div>
 
-<!-- MODAL 2: CHỈNH SỬA BÀI TẬP -->
+<!-- ========================================================================= -->
+<!-- MODAL 2: CHỈNH SỬA BÀI TẬP (Form POST action="edit_problem")              -->
+<!-- Dữ liệu hiện tại được nạp sẵn bởi hàm JS openEditModal().                 -->
+<!-- Hỗ trợ 2 chế độ: Sửa đè phiên bản hiện tại hoặc tích chọn phát hành v(N+1)-->
+<!-- ========================================================================= -->
 <div id="editModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm hidden p-4 overflow-y-auto">
   <div class="glass-panel w-full max-w-2xl rounded-2xl border border-white/20 p-6 my-8 space-y-6 shadow-2xl">
     <div class="flex items-center justify-between border-b border-white/10 pb-4">
@@ -842,7 +899,12 @@ require_once __DIR__ . '/includes/sidebar.php';
   </div>
 </div>
 
-<!-- MODAL 3: QUẢN LÝ & SỬA TEST CASES -->
+<!-- ========================================================================= -->
+<!-- MODAL 3: QUẢN LÝ & SỬA BỘ TEST CASES (Tương tác AJAX với version_rejudge) -->
+<!-- Tự động phân biệt 2 chế độ theo số bài nộp của bài tập:                   -->
+<!--   + 0 bài nộp: Sửa trực tiếp vào phiên bản hiện hành (In-place Update)    -->
+<!--   + >0 bài nộp: Tự động sinh phiên bản v(N+1) và đẩy Rejudge toàn bộ bài  -->
+<!-- ========================================================================= -->
 <div id="testcasesModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm hidden p-4 overflow-y-auto">
   <div class="glass-panel w-full max-w-4xl rounded-2xl border border-white/20 p-6 my-8 space-y-6 shadow-2xl flex flex-col max-h-[92vh]">
     <!-- Header -->
@@ -913,7 +975,13 @@ require_once __DIR__ . '/includes/sidebar.php';
   </div>
 </div>
 
-<!-- MODAL 4: NHẬP VÀ THẨM ĐỊNH BỘ TEST CASES TỪ TỆP (ZIP/JSON) -->
+<!-- ========================================================================= -->
+<!-- MODAL 4: NHẬP VÀ THẨM ĐỊNH BỘ TEST CASES TỪ TỆP ZIP/JSON (2 GIAI ĐOẠN)    -->
+<!--   + Giai đoạn 1: Chọn file .ZIP/.JSON và (tùy chọn) dán lời giải chuẩn    -->
+<!--     để máy chủ tự chạy đối chiếu đáp án (Thẩm định Cấp độ 3).             -->
+<!--   + Giai đoạn 2: Xem bảng báo cáo ghép cặp, cảnh báo file mồ côi và áp    -->
+<!--     dụng (Thay thế hoặc Nối tiếp) vào Modal Tạo bài hoặc Modal Sửa test.  -->
+<!-- ========================================================================= -->
 <div id="importTestcasesModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm hidden p-4 overflow-y-auto">
   <div class="glass-panel w-full max-w-4xl rounded-2xl border border-white/20 p-6 my-8 space-y-5 shadow-2xl flex flex-col max-h-[92vh]">
     <!-- Header -->
@@ -1069,7 +1137,12 @@ require_once __DIR__ . '/includes/sidebar.php';
   </div>
 </div>
 
-<!-- MODAL 5: XÁC NHẬN XÓA BÀI TẬP (SMART DELETE: SOFT & HARD DELETE) -->
+<!-- ========================================================================= -->
+<!-- MODAL 5: XÁC NHẬN XÓA BÀI TẬP (SMART DELETE: XÓA MỀM & XÓA VĨNH VIỄN)     -->
+<!--   + Nếu bài đã có lượt nộp (>0): Chỉ cho phép Xóa mềm (đưa vào Thùng rác) -->
+<!--     để bảo lưu mã nguồn và điểm số học viên.                              -->
+<!--   + Nếu bài có 0 lượt nộp: Cho chọn Xóa mềm hoặc Xóa vĩnh viễn khỏi CSDL. -->
+<!-- ========================================================================= -->
 <div id="deleteProblemModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm hidden p-4 overflow-y-auto">
   <div class="glass-panel w-full max-w-lg rounded-2xl border border-white/20 p-6 my-8 space-y-5 shadow-2xl flex flex-col">
     <!-- Header -->
@@ -1119,7 +1192,12 @@ require_once __DIR__ . '/includes/sidebar.php';
   </div>
 </div>
 
+<!-- ========================================================================= -->
+<!-- PHẦN 3: JAVASCRIPT QUẢN LÝ MODAL, FORM TEST CASE ĐỘNG & TƯƠNG TÁC API     -->
+<!-- ========================================================================= -->
 <script>
+// Hàm mở một hộp thoại Modal theo ID bằng cách gỡ bỏ lớp 'hidden'
+// Riêng khi mở Modal Tạo bài tập (createModal) lần đầu, tự động thêm sẵn 2 dòng test case (1 mẫu, 1 kín)
 function openModal(modalId) {
   document.getElementById(modalId).classList.remove('hidden');
   if (modalId === 'createModal') {
@@ -1131,10 +1209,12 @@ function openModal(modalId) {
   }
 }
 
+// Hàm đóng một hộp thoại Modal theo ID bằng cách thêm lại lớp 'hidden'
 function closeModal(modalId) {
   document.getElementById(modalId).classList.add('hidden');
 }
 
+// Lắng nghe sự kiện click ra vùng nền mờ bên ngoài khung Modal để tự động đóng Modal tương ứng
 window.addEventListener('click', function(e) {
   const createModal = document.getElementById('createModal');
   const editModal = document.getElementById('editModal');
@@ -1148,6 +1228,7 @@ window.addEventListener('click', function(e) {
   if (e.target === deleteModal) closeModal('deleteProblemModal');
 });
 
+// Hàm mở Modal Chỉnh sửa bài tập (editModal) và nạp sẵn toàn bộ dữ liệu hiện tại của bài vào các ô nhập liệu
 function openEditModal(problem) {
   document.getElementById('edit_problem_id').value = problem.id;
   document.getElementById('edit_slug').value = problem.slug;
@@ -1155,12 +1236,14 @@ function openEditModal(problem) {
   document.getElementById('edit_topic').value = problem.topic || 'Cơ bản';
   document.getElementById('edit_difficulty').value = problem.difficulty;
   document.getElementById('edit_time_limit_ms').value = problem.time_limit_ms || 1000;
+  // Quy đổi giới hạn bộ nhớ từ KB trong CSDL sang MB để người dùng dễ nhập
   document.getElementById('edit_memory_limit_mb').value = Math.round((problem.memory_limit_kb || 262144) / 1024);
   document.getElementById('edit_visibility').value = problem.visibility || (problem.is_public ? 'public' : 'hidden');
   document.getElementById('edit_description').value = problem.description || '';
   document.getElementById('edit_input_description').value = problem.input_description || '';
   document.getElementById('edit_output_description').value = problem.output_description || '';
   document.getElementById('edit_constraints').value = problem.constraints || '';
+  // Đặt lại ô tích "Phát hành thành phiên bản đề mới" về trạng thái chưa chọn và ẩn ô nhập changelog
   const chkVer = document.getElementById('edit_create_new_version');
   if (chkVer) chkVer.checked = false;
   const wrapVer = document.getElementById('edit-changelog-wrap');
@@ -1171,16 +1254,19 @@ function openEditModal(problem) {
 }
 
 // -------------------------------------------------------------
-// QUẢN LÝ TEST CASES KHI TẠO MỚI BÀI TẬP (createModal)
+// NHÓM HÀM 1: QUẢN LÝ TEST CASES ĐỘNG TRONG MODAL TẠO BÀI (createModal)
 // -------------------------------------------------------------
+// Biến đếm tăng dần giúp tên input dạng test_cases[0], test_cases[1]... không bao giờ bị trùng kể cả sau khi xóa dòng giữa
 let createTcCounter = 0;
 
+// Hàm thêm 1 thẻ nhập Test Case mới vào form tạo bài tập (hỗ trợ điền sẵn dữ liệu khi nhập từ file ZIP/JSON)
 function addCreateTestcaseRow(data = null) {
   const container = document.getElementById('create-tc-list');
   if (!container) return;
   const count = container.querySelectorAll('.create-tc-card').length;
   const idx = createTcCounter++;
 
+  // Mặc định test case đầu tiên là Công khai (Sample), các test case tiếp theo là Chấm kín (Hidden)
   const isSampleChecked = data ? (data.is_sample == 1 ? 'checked' : '') : (count === 0 ? 'checked' : '');
   const isHiddenChecked = isSampleChecked ? '' : 'checked';
   const points = data && data.points !== undefined ? data.points : 10;
@@ -1227,6 +1313,7 @@ function addCreateTestcaseRow(data = null) {
   updateCreateTestcaseNumbers();
 }
 
+// Hàm xóa 1 thẻ test case trong Modal Tạo bài (luôn giữ lại tối thiểu 1 test case)
 function removeCreateTestcaseRow(btn) {
   const container = document.getElementById('create-tc-list');
   if (container.querySelectorAll('.create-tc-card').length <= 1) {
@@ -1237,6 +1324,7 @@ function removeCreateTestcaseRow(btn) {
   updateCreateTestcaseNumbers();
 }
 
+// Hàm đánh lại số thứ tự hiển thị (Test Case #1, #2, #3...) sau mỗi lần thêm hoặc xóa dòng
 function updateCreateTestcaseNumbers() {
   const container = document.getElementById('create-tc-list');
   if (!container) return;
@@ -1247,6 +1335,7 @@ function updateCreateTestcaseNumbers() {
   });
 }
 
+// Khi trang vừa tải xong DOM -> tạo sẵn 2 dòng test case mẫu trong Modal Tạo bài để sẵn sàng sử dụng
 document.addEventListener('DOMContentLoaded', function() {
   const container = document.getElementById('create-tc-list');
   if (container && container.children.length === 0) {
@@ -1256,12 +1345,14 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // -------------------------------------------------------------
-// QUẢN LÝ & SỬA TEST CASES
+// NHÓM HÀM 2: QUẢN LÝ & SỬA BỘ TEST CASES QUA API (testcasesModal)
 // -------------------------------------------------------------
+// Biến trạng thái lưu bài tập đang được mở trong Modal Sửa Test Cases
 let currentTcProblemId = 0;
 let currentTcSubmissionsCount = 0;
 let currentTcVersionNumber = 1;
 
+// Hàm mã hóa ký tự HTML đặc biệt (&, <, >, ", ') nhằm ngăn lỗi hiển thị và phòng chống tấn công XSS khi ghép chuỗi innerHTML
 function escapeHtml(text) {
   if (text === null || text === undefined) return '';
   return String(text)
@@ -1272,6 +1363,9 @@ function escapeHtml(text) {
     .replace(/'/g, '&#039;');
 }
 
+// Hàm mở Modal Quản lý Test Cases:
+// 1. Hiển thị cảnh báo chế độ hoạt động (0 bài nộp -> sửa trực tiếp; >0 bài nộp -> tạo v(N+1) và tự động Rejudge)
+// 2. Gọi API GET /BaiTapLon/api/version_rejudge.php?action=get_testcases để tải danh sách test case hiện có
 async function openTestcasesModal(problemId, problemTitle, totalSubmissions, currentVersionNumber) {
   currentTcProblemId = problemId;
   currentTcSubmissionsCount = parseInt(totalSubmissions) || 0;
@@ -1285,6 +1379,7 @@ async function openTestcasesModal(problemId, problemTitle, totalSubmissions, cur
   const modeBanner = document.getElementById('tc-mode-banner');
   const changelogContainer = document.getElementById('tc-changelog-container');
 
+  // Quyết định banner giải thích chế độ lưu theo số lượt nộp hiện có
   if (currentTcSubmissionsCount === 0) {
     modeBanner.innerHTML = `
       <div class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-start space-x-3">
@@ -1315,6 +1410,7 @@ async function openTestcasesModal(problemId, problemTitle, totalSubmissions, cur
     document.getElementById('tc-changelog-input').value = `Sửa bộ test case cho phiên bản v${currentTcVersionNumber + 1}`;
   }
 
+  // Hiện biểu tượng đang tải trong lúc chờ API trả về danh sách test case
   const listContainer = document.getElementById('tc-list-container');
   listContainer.innerHTML = `
     <div class="py-12 text-center text-slate-400">
@@ -1338,6 +1434,7 @@ async function openTestcasesModal(problemId, problemTitle, totalSubmissions, cur
       return;
     }
 
+    // Vẽ lại danh sách các thẻ test case từ dữ liệu JSON trả về
     listContainer.innerHTML = '';
     const testCases = data.test_cases || [];
 
@@ -1360,8 +1457,10 @@ async function openTestcasesModal(problemId, problemTitle, totalSubmissions, cur
   }
 }
 
+// Bộ đếm tên nhóm radio button riêng biệt cho từng thẻ test case trong Modal Sửa Test Cases
 let tcModalCardCounter = 0;
 
+// Hàm dựng phần tử DOM (thẻ <div>) cho một test case gồm: radio Sample/Hidden, ô điểm, nút xóa và 2 ô Input/Expected Output
 function createTestcaseCardElement(tc, idx) {
   const card = document.createElement('div');
   card.className = 'testcase-card p-4 rounded-xl bg-white/[0.03] border border-white/10 space-y-3 hover:border-white/20 transition-all';
@@ -1410,6 +1509,7 @@ function createTestcaseCardElement(tc, idx) {
   return card;
 }
 
+// Hàm thêm 1 dòng test case trống mới vào cuối danh sách trong testcasesModal và tự cuộn xuống cuối
 function addTestcaseRow() {
   const container = document.getElementById('tc-list-container');
   const count = container.querySelectorAll('.testcase-card').length;
@@ -1429,6 +1529,7 @@ function addTestcaseRow() {
   container.scrollTop = container.scrollHeight;
 }
 
+// Hàm xóa 1 thẻ test case trong testcasesModal (không cho phép xóa nếu chỉ còn 1 test case duy nhất)
 function removeTestcaseRow(button) {
   const container = document.getElementById('tc-list-container');
   const cards = container.querySelectorAll('.testcase-card');
@@ -1440,6 +1541,7 @@ function removeTestcaseRow(button) {
   updateTestcaseLabels();
 }
 
+// Hàm đánh lại số thứ tự (#1, #2, ...) và cập nhật nhãn tổng số test case ở cuối Modal
 function updateTestcaseLabels() {
   const container = document.getElementById('tc-list-container');
   const cards = container.querySelectorAll('.testcase-card');
@@ -1450,6 +1552,8 @@ function updateTestcaseLabels() {
   document.getElementById('tc-total-count-label').textContent = `Tổng cộng: ${cards.length} test case`;
 }
 
+// Hàm gom toàn bộ các thẻ test case hiện có trên giao diện và gửi POST JSON lên API /BaiTapLon/api/version_rejudge.php
+// Nếu bài tập đã có lượt nộp, API sẽ tạo phiên bản mới và hỏi người dùng có muốn mở ngay trang đối chiếu Rejudge không
 async function saveTestcases() {
   const container = document.getElementById('tc-list-container');
   const cards = container.querySelectorAll('.testcase-card');
@@ -1458,6 +1562,7 @@ async function saveTestcases() {
     return;
   }
 
+  // Duyệt từng thẻ test case trên DOM để đóng gói thành mảng đối tượng JSON
   const testCasesList = [];
   for (let i = 0; i < cards.length; i++) {
     const card = cards[i];
@@ -1480,6 +1585,7 @@ async function saveTestcases() {
   const saveBtn = document.getElementById('btn-save-testcases');
   const statusEl = document.getElementById('tc-save-status');
 
+  // Khóa nút Lưu trong lúc đang gửi yêu cầu
   saveBtn.disabled = true;
   saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-1"></i>Đang lưu test cases...';
   statusEl.innerHTML = '';
@@ -1505,7 +1611,7 @@ async function saveTestcases() {
       return;
     }
 
-    // Thành công
+    // Lưu thành công: hiển thị thông báo và điều hướng nếu có kích hoạt Rejudge hàng loạt
     statusEl.innerHTML = `<span class="text-emerald-400 font-semibold"><i class="fa-solid fa-circle-check mr-1"></i>${escapeHtml(data.message)}</span>`;
 
     if (data.mode === 'new_version_rejudge' && data.rejudged_count > 0) {
@@ -1530,17 +1636,21 @@ async function saveTestcases() {
 }
 
 // -------------------------------------------------------------
-// XỬ LÝ NHẬP TEST CASES TỪ TỆP (ZIP/JSON) & THẨM ĐỊNH ĐỐI SOÁT
+// NHÓM HÀM 3: NHẬP TEST CASES TỪ TỆP ZIP/JSON & THẨM ĐỊNH ĐỐI SOÁT (importTestcasesModal)
 // -------------------------------------------------------------
+// currentImportTarget: xác định nơi đổ dữ liệu sau khi nhập xong ('create' = Modal tạo bài, 'edit' = Modal sửa test)
+// validatedImportCases: mảng lưu danh sách test case hợp lệ nhận về từ API import_testcases.php
 let currentImportTarget = 'create';
 let validatedImportCases = [];
 
+// Hàm mở Modal Nhập file và đưa giao diện về Giai đoạn 1 (chọn tệp)
 function openImportModal(target) {
   currentImportTarget = target;
   resetImportUploadStage();
   openModal('importTestcasesModal');
 }
 
+// Hàm đặt lại Modal Nhập file về trạng thái ban đầu (ẩn bảng xem trước, xóa file cũ và lời giải cũ)
 function resetImportUploadStage() {
   document.getElementById('import-stage-upload').classList.remove('hidden');
   document.getElementById('import-stage-preview').classList.add('hidden');
@@ -1556,6 +1666,7 @@ function resetImportUploadStage() {
   validatedImportCases = [];
 }
 
+// Hàm hiển thị tên file và dung lượng (KB) ngay khi người dùng chọn tệp .ZIP/.JSON từ máy tính
 function handleImportFileSelected(input) {
   if (input.files && input.files[0]) {
     const f = input.files[0];
@@ -1569,6 +1680,7 @@ function handleImportFileSelected(input) {
   }
 }
 
+// Hàm bật/tắt khung dán mã nguồn Lời giải chuẩn (Thẩm định Cấp độ 3)
 function toggleModelVerifyBox(checked) {
   const box = document.getElementById('model-verify-box');
   if (checked) {
@@ -1578,6 +1690,8 @@ function toggleModelVerifyBox(checked) {
   }
 }
 
+// Hàm tải file ZIP/JSON (dùng FormData) kèm mã nguồn lời giải chuẩn (nếu có) lên API /BaiTapLon/api/import_testcases.php
+// Sau khi máy chủ giải nén, ghép cặp .in/.out và chạy đối chiếu -> hiển thị báo cáo thẩm định ở Giai đoạn 2
 async function uploadAndValidateTestcases() {
   const fileInput = document.getElementById('import-file-input');
   if (!fileInput.files || !fileInput.files[0]) {
@@ -1585,6 +1699,7 @@ async function uploadAndValidateTestcases() {
     return;
   }
 
+  // Dùng FormData để gửi được cả file nhị phân (.zip/.json) và các trường văn bản lên PHP ($_FILES & $_POST)
   const formData = new FormData();
   formData.append('testcase_file', fileInput.files[0]);
 
@@ -1620,7 +1735,7 @@ async function uploadAndValidateTestcases() {
 
     validatedImportCases = data.test_cases || [];
 
-    // Render Thống kê
+    // Vẽ 4 thẻ thống kê kết quả thẩm định: Tổng tìm thấy, Hợp lệ, File mồ côi (thiếu cặp) và Kết quả đối soát lời giải
     const statsContainer = document.getElementById('import-stats-cards');
     const modelBadge = data.model_solution_ran
       ? (validatedImportCases.some(t => t.status === 'MISMATCH')
@@ -1647,7 +1762,7 @@ async function uploadAndValidateTestcases() {
       </div>
     `;
 
-    // Cảnh báo nếu có file mồ côi
+    // Hiển thị hộp cảnh báo đỏ liệt kê các file không đủ cặp .in/.out (nếu có)
     const orphanBox = document.getElementById('import-orphans-alert');
     if (data.orphan_count > 0) {
       orphanBox.classList.remove('hidden');
@@ -1666,7 +1781,7 @@ async function uploadAndValidateTestcases() {
       orphanBox.classList.add('hidden');
     }
 
-    // Render Preview Table
+    // Vẽ từng dòng của bảng xem trước để Giảng viên rà soát, chọn lại Mẫu/Kín và điểm số trước khi áp dụng
     const tbody = document.getElementById('import-preview-table-body');
     tbody.innerHTML = '';
 
@@ -1715,7 +1830,7 @@ async function uploadAndValidateTestcases() {
       tbody.appendChild(tr);
     });
 
-    // Chuyển sang Stage 2
+    // Chuyển giao diện Modal từ Giai đoạn 1 (Chọn file) sang Giai đoạn 2 (Xem trước & Xác nhận nhập)
     document.getElementById('import-stage-upload').classList.add('hidden');
     document.getElementById('import-stage-preview').classList.remove('hidden');
     document.getElementById('btn-start-import-validate').classList.add('hidden');
@@ -1729,13 +1844,14 @@ async function uploadAndValidateTestcases() {
   }
 }
 
+// Hàm đổ danh sách test case đã thẩm định vào đúng Modal đích ('create' hoặc 'edit') theo chế độ Thay thế (replace) hay Nối tiếp (append)
 function applyImportedTestcases() {
   if (!validatedImportCases || validatedImportCases.length === 0) {
     alert('Không có test case nào để áp dụng.');
     return;
   }
 
-  // Đọc lại các lựa chọn phân loại và điểm số từ bảng xem trước
+  // Đọc lại các lựa chọn phân loại (Mẫu/Kín) và điểm số mà Giảng viên vừa điều chỉnh trong bảng xem trước
   const rows = document.querySelectorAll('.import-preview-row');
   rows.forEach((row, i) => {
     if (validatedImportCases[i]) {
@@ -1749,6 +1865,7 @@ function applyImportedTestcases() {
 
   const applyMode = document.querySelector('input[name="import_apply_mode"]:checked')?.value || 'replace';
 
+  // Đổ dữ liệu sang Modal Tạo bài mới (createModal) hoặc Modal Quản lý Test Cases (testcasesModal)
   if (currentImportTarget === 'create') {
     const container = document.getElementById('create-tc-list');
     if (applyMode === 'replace') {
@@ -1783,8 +1900,9 @@ function applyImportedTestcases() {
 }
 
 // =========================================================================
-// QUẢN LÝ XÓA & KHÔI PHỤC BÀI TẬP (SOFT DELETE / HARD DELETE / RESTORE)
+// NHÓM HÀM 4: QUẢN LÝ XÓA & KHÔI PHỤC BÀI TẬP (SOFT DELETE / HARD DELETE / RESTORE)
 // =========================================================================
+// Đối tượng lưu thông tin bài tập đang chuẩn bị xóa để dùng khi bấm nút Xác nhận
 let currentDeleteTarget = {
   problemId: 0,
   title: '',
@@ -1793,6 +1911,10 @@ let currentDeleteTarget = {
   isHardDeleteOnly: false
 };
 
+// Hàm mở Modal Xác nhận Xóa và tự động tùy biến nội dung cảnh báo theo 3 tình huống:
+// 1. isHardDeleteOnly = true (bấm từ Thùng rác, 0 lượt nộp) -> Xóa vĩnh viễn
+// 2. totalSubmissions > 0 -> Bắt buộc Xóa mềm (đưa vào Thùng rác, bảo lưu dữ liệu bài nộp học viên)
+// 3. totalSubmissions === 0 (từ tab Hoạt động) -> Cho chọn giữa Xóa mềm và Xóa vĩnh viễn
 function openDeleteModal(problemId, title, slug, totalSubmissions, isHardDeleteOnly = false) {
   currentDeleteTarget = { problemId, title, slug, totalSubmissions, isHardDeleteOnly };
 
@@ -1879,10 +2001,12 @@ function openDeleteModal(problemId, title, slug, totalSubmissions, isHardDeleteO
   openModal('deleteProblemModal');
 }
 
+// Hàm gửi yêu cầu xóa (action = 'soft_delete' hoặc 'hard_delete') lên API /BaiTapLon/api/delete_problem.php
 async function executeDeleteProblem() {
   const btn = document.getElementById('btn-confirm-delete');
   const statusMsg = document.getElementById('del-status-msg');
 
+  // Xác định chế độ xóa cuối cùng dựa trên trạng thái bài tập và radio button người dùng chọn
   let mode = 'soft';
   if (currentDeleteTarget.isHardDeleteOnly) {
     mode = 'hard';
@@ -1915,6 +2039,7 @@ async function executeDeleteProblem() {
 
     statusMsg.innerHTML = `<span class="text-emerald-400 font-semibold"><i class="fa-solid fa-circle-check mr-1"></i>${escapeHtml(data.message)}</span>`;
 
+    // Đợi 0.6 giây rồi đóng Modal và tải lại danh sách bài tập
     setTimeout(() => {
       closeModal('deleteProblemModal');
       window.location.reload();
@@ -1927,6 +2052,7 @@ async function executeDeleteProblem() {
   }
 }
 
+// Hàm khôi phục một bài tập từ Thùng rác về lại danh sách Đang hoạt động qua API delete_problem.php (action = 'restore')
 async function restoreProblem(problemId, title) {
   if (!confirm(`Bạn có chắc chắn muốn khôi phục bài tập "${title}" trở lại danh sách hoạt động?`)) {
     return;
@@ -1956,4 +2082,7 @@ async function restoreProblem(problemId, title) {
 </script>
 
   </main>
-<?php require_once __DIR__ . '/includes/footer.php'; ?>
+<?php
+// Nạp phần chân trang chung của hệ thống
+require_once __DIR__ . '/includes/footer.php';
+?>

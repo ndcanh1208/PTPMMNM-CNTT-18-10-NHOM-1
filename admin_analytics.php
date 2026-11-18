@@ -1,27 +1,46 @@
 <?php
 /**
+ * ============================================================================
  * Nhom1 Online Judge - Phân hệ Admin: Thống kê & Báo cáo Kết quả Học tập
- * - Thống kê tổng quan: Bài tập, Bài nộp, Tỷ lệ AC vs WA vs TLE vs RE vs CE vs SE
- * - So sánh hiệu suất Python vs C++, phân tích theo từng bài tập
- * - Báo cáo điểm số sinh viên & Xuất dữ liệu CSV (Excel) / JSON
+ * ============================================================================
+ * MỤC ĐÍCH TRANG NÀY:
+ * - Cung cấp bảng điều khiển phân tích tổng quan cho Quản trị viên (Admin):
+ *   tổng số bài tập, tổng số bài nộp, tỷ lệ kết quả chấm (AC, WA, TLE, RE, CE, SE).
+ * - So sánh hiệu suất thực thi giữa 2 ngôn ngữ lập trình Python và C++.
+ * - Lập bảng xếp hạng/điểm số sinh viên (lọc theo lớp, khoảng ngày) và xuất báo cáo CSV/JSON.
+ * - Thống kê tỷ lệ hoàn thành chi tiết của từng bài tập.
+ *
+ * CẤU TRÚC FILE GỒM 2 PHẦN CHÍNH (trang báo cáo thuần server-side, không có JS riêng):
+ * - PHẦN 1 (PHP): Kiểm tra quyền Admin, đọc bộ lọc GET và thực thi các truy vấn SQL tổng hợp.
+ * - PHẦN 2 (HTML): Hiển thị thẻ KPI, biểu đồ thanh ngang, bảng điểm sinh viên và bảng bài tập.
  */
 
+// Bật chế độ kiểm tra kiểu dữ liệu nghiêm ngặt trong PHP (tránh ép kiểu ngầm gây lỗi)
 declare(strict_types=1);
 
+// Nạp các tệp lõi: kết nối CSDL (PDO), quản lý đăng nhập/phân quyền (Auth) và chống XSS (Security)
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/core/Auth.php';
 require_once __DIR__ . '/core/Security.php';
 
+// Chỉ cho phép tài khoản có vai trò 'admin' truy cập trang này (nếu không sẽ bị chặn/chuyển hướng)
 Auth::requireRoles(['admin']);
 
+// Lấy đối tượng kết nối PDO tới cơ sở dữ liệu MySQL
 $pdo = getDbConnection();
 
-// Bộ lọc báo cáo
+// ============================================================================
+// PHẦN 1: ĐỌC BỘ LỌC GET VÀ TRUY VẤN CƠ SỞ DỮ LIỆU THỐNG KÊ
+// ============================================================================
+
+// Đọc tham số lọc từ thanh địa chỉ URL (?class_name=...&date_from=...&date_to=...)
+// trim() giúp cắt bỏ khoảng trắng thừa ở hai đầu chuỗi
 $classFilter = trim((string)($_GET['class_name'] ?? ''));
 $dateFrom    = trim((string)($_GET['date_from'] ?? ''));
 $dateTo      = trim((string)($_GET['date_to'] ?? ''));
 
-// 1. Tổng quan Bài tập & Sinh viên
+// 1. Truy vấn tổng quan số lượng Bài tập đang hoạt động (chưa bị xóa mềm: deleted_at IS NULL)
+// Dùng SUM(CASE WHEN ... THEN 1 ELSE 0 END) để đếm có điều kiện theo từng chế độ hiển thị trong 1 câu SQL
 $problemCounts = $pdo->query("
     SELECT
         COUNT(*) AS total_active,
@@ -32,16 +51,20 @@ $problemCounts = $pdo->query("
     WHERE deleted_at IS NULL
 ")->fetch(PDO::FETCH_ASSOC);
 
+// Dùng max(1, ...) để đảm bảo mẫu số luôn >= 1, tránh lỗi chia cho 0 khi tính điểm thang 10
 $totalActiveProblems = max(1, (int)$problemCounts['total_active']);
+// Đếm tổng số tài khoản có vai trò sinh viên ('learner')
 $totalStudents = (int)$pdo->query("SELECT COUNT(*) FROM users WHERE role = 'learner'")->fetchColumn();
 
-// 2. Thống kê phân bố phán quyết (AC, WA, TLE, RE, CE, SE)
+// 2. Thống kê phân bố phán quyết chấm bài (AC, WA, TLE, RE, CE, SE) trên toàn hệ thống
+// PDO::FETCH_KEY_PAIR trả về mảng dạng ['AC' => 120, 'WA' => 45, ...] (cột 1 làm key, cột 2 làm value)
 $verdictRaw = $pdo->query("
     SELECT final_verdict, COUNT(*) AS cnt
     FROM submissions
     GROUP BY final_verdict
 ")->fetchAll(PDO::FETCH_KEY_PAIR);
 
+// Chuẩn hóa đủ 6 loại phán quyết phổ biến (nếu chưa có bài nộp nào mang trạng thái đó thì gán 0)
 $verdicts = [
     'AC'  => (int)($verdictRaw['AC'] ?? 0),
     'WA'  => (int)($verdictRaw['WA'] ?? 0),
@@ -50,12 +73,14 @@ $verdicts = [
     'CE'  => (int)($verdictRaw['CE'] ?? 0),
     'SE'  => (int)($verdictRaw['SE'] ?? 0)
 ];
+// Tính tổng toàn bộ lượt nộp bài và tỷ lệ phần trăm của 3 phán quyết quan trọng nhất (AC, WA, TLE)
 $totalSubmissions = array_sum(array_map('intval', $verdictRaw));
 $acRateGlobal = $totalSubmissions > 0 ? round(($verdicts['AC'] / $totalSubmissions) * 100, 1) : 0;
 $waRateGlobal = $totalSubmissions > 0 ? round(($verdicts['WA'] / $totalSubmissions) * 100, 1) : 0;
 $tleRateGlobal = $totalSubmissions > 0 ? round(($verdicts['TLE'] / $totalSubmissions) * 100, 1) : 0;
 
-// 3. So sánh Python vs C++
+// 3. Thống kê so sánh hiệu suất giữa hai ngôn ngữ Python và C++
+// Đếm tổng bài nộp, số bài AC và thời gian chạy trung bình (AVG) theo từng ngôn ngữ
 $langRows = $pdo->query("
     SELECT
         language,
@@ -65,6 +90,7 @@ $langRows = $pdo->query("
     FROM submissions
     GROUP BY language
 ")->fetchAll(PDO::FETCH_ASSOC);
+// Khởi tạo giá trị mặc định bằng 0 phòng trường hợp một ngôn ngữ chưa có lượt nộp nào
 $langMap = ['python' => ['total_cnt' => 0, 'ac_cnt' => 0, 'avg_time_ms' => 0], 'cpp' => ['total_cnt' => 0, 'ac_cnt' => 0, 'avg_time_ms' => 0]];
 foreach ($langRows as $lr) {
     if (isset($langMap[$lr['language']])) {
@@ -72,7 +98,9 @@ foreach ($langRows as $lr) {
     }
 }
 
-// 4. Thống kê theo từng bài tập (Top bài nộp)
+// 4. Thống kê chi tiết theo từng bài tập (lấy tối đa 20 bài có nhiều lượt nộp nhất)
+// LEFT JOIN giúp vẫn hiển thị các bài tập dù chưa có bài nộp nào (total_subs = 0)
+// COUNT(DISTINCT ...) đếm số sinh viên khác nhau đã giải đúng (AC) bài tập đó
 $problemStats = $pdo->query("
     SELECT
         p.id, p.slug, p.title, p.difficulty, p.visibility,
@@ -89,10 +117,11 @@ $problemStats = $pdo->query("
     LIMIT 20
 ")->fetchAll(PDO::FETCH_ASSOC);
 
-// 5. Danh sách lớp để lọc báo cáo
+// 5. Lấy danh sách các tên lớp duy nhất (DISTINCT) hiện có để đổ vào thẻ <select> lọc theo lớp
 $allClasses = $pdo->query("SELECT DISTINCT class_name FROM users WHERE class_name IS NOT NULL AND class_name != '' ORDER BY class_name ASC")->fetchAll(PDO::FETCH_COLUMN);
 
-// 6. Bảng tổng hợp điểm số sinh viên (theo bộ lọc)
+// 6. Xây dựng truy vấn động cho Bảng tổng hợp điểm số sinh viên (có áp dụng bộ lọc Lớp & Ngày)
+// Lưu ý: Điều kiện ngày đặt trong mệnh đề ON của LEFT JOIN để sinh viên chưa nộp bài trong khoảng ngày đó vẫn hiện với 0 lượt nộp
 $joinParams = [];
 $dateJoin = '';
 if ($dateFrom !== '') {
@@ -103,6 +132,7 @@ if ($dateTo !== '') {
     $dateJoin .= " AND s.submitted_at <= ?";
     $joinParams[] = $dateTo . ' 23:59:59';
 }
+// Điều kiện lọc người dùng (chỉ lấy sinh viên và lọc theo lớp nếu người dùng có chọn)
 $userParams = [];
 $whereUserSql = "u.role = 'learner'";
 if ($classFilter !== '') {
@@ -110,6 +140,7 @@ if ($classFilter !== '') {
     $userParams[] = $classFilter;
 }
 
+// Dùng Prepared Statement với dấu '?' để truyền tham số an toàn, chống tấn công SQL Injection
 $studentStmt = $pdo->prepare("
     SELECT
         u.id, u.username, u.full_name, u.student_code, u.class_name, u.email, u.is_locked,
@@ -124,23 +155,31 @@ $studentStmt = $pdo->prepare("
     GROUP BY u.id
     ORDER BY solved_problems DESC, ac_submissions DESC, u.student_code ASC
 ");
+// Ghép mảng tham số đúng thứ tự xuất hiện của dấu '?' trong câu SQL (JOIN trước, WHERE sau)
 $studentStmt->execute(array_merge($joinParams, $userParams));
 $studentReport = $studentStmt->fetchAll(PDO::FETCH_ASSOC);
 
+// Tạo chuỗi query string giữ nguyên các bộ lọc hiện tại để gắn vào các nút Xuất báo cáo CSV/JSON
 $exportQuery = http_build_query([
     'class_name' => $classFilter,
     'date_from'  => $dateFrom,
     'date_to'    => $dateTo
 ]);
 
+// Thiết lập tiêu đề trang và nạp phần khung giao diện chung (header + thanh menu bên trái sidebar)
 $pageTitle = 'Thống kê & Báo cáo Học tập';
 require_once __DIR__ . '/includes/header.php';
 require_once __DIR__ . '/includes/sidebar.php';
 ?>
 
+<!-- ========================================================================= -->
+<!-- PHẦN 2: GIAO DIỆN HTML (KPI TỔNG QUAN, BIỂU ĐỒ & BẢNG BÁO CÁO)             -->
+<!-- Lưu ý: Trang này xử lý lọc bằng form GET và tải file trực tiếp qua API     -->
+<!-- export_report.php nên không cần mã JavaScript phức tạp ở cuối trang.       -->
+<!-- ========================================================================= -->
 <div class="pl-64 min-h-screen flex flex-col w-full">
   <main class="p-8 max-w-7xl w-full mx-auto space-y-6 flex-1">
-    <!-- Header -->
+    <!-- Khối tiêu đề trang và nhóm nút tải về báo cáo CSV / JSON -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div>
         <h1 class="text-2xl font-black text-white flex items-center space-x-3">
@@ -151,6 +190,7 @@ require_once __DIR__ . '/includes/sidebar.php';
           Phân tích tỷ lệ Accepted (AC) / Wrong Answer (WA) / Time Limit Exceeded (TLE) và xuất báo cáo đánh giá học phần.
         </p>
       </div>
+      <!-- Nhóm nút gọi API /BaiTapLon/api/export_report.php kèm bộ lọc đang chọn ($exportQuery) -->
       <div class="flex flex-wrap items-center gap-2">
         <a href="/BaiTapLon/api/export_report.php?type=student_summary&format=csv&<?= $exportQuery ?>" class="px-3.5 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 text-xs font-bold inline-flex items-center space-x-1.5">
           <i class="fa-solid fa-file-excel"></i>
@@ -167,8 +207,9 @@ require_once __DIR__ . '/includes/sidebar.php';
       </div>
     </div>
 
-    <!-- 1. KPI TỔNG QUAN -->
+    <!-- 1. KHỐI 4 THẺ CHỈ SỐ KPI TỔNG QUAN (Bài tập, Bài nộp, Tỷ lệ AC, Tỷ lệ WA/TLE) -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- Thẻ KPI 1: Tổng số bài tập và phân loại công khai / ẩn / phòng thi -->
       <div class="glass-panel p-5 rounded-2xl border border-white/10">
         <div class="flex items-center justify-between text-slate-400 text-xs mb-2">
           <span class="uppercase font-bold">Tổng số Bài tập</span>
@@ -184,6 +225,7 @@ require_once __DIR__ . '/includes/sidebar.php';
         </div>
       </div>
 
+      <!-- Thẻ KPI 2: Tổng số bài nộp toàn hệ thống và số sinh viên tham gia -->
       <div class="glass-panel p-5 rounded-2xl border border-white/10">
         <div class="flex items-center justify-between text-slate-400 text-xs mb-2">
           <span class="uppercase font-bold">Tổng số Bài nộp</span>
@@ -195,6 +237,7 @@ require_once __DIR__ . '/includes/sidebar.php';
         </div>
       </div>
 
+      <!-- Thẻ KPI 3: Tỷ lệ bài nộp đạt Accepted (AC) -->
       <div class="glass-panel p-5 rounded-2xl border border-emerald-500/20">
         <div class="flex items-center justify-between text-slate-400 text-xs mb-2">
           <span class="uppercase font-bold">Tỷ lệ Accepted (AC)</span>
@@ -206,6 +249,7 @@ require_once __DIR__ . '/includes/sidebar.php';
         </div>
       </div>
 
+      <!-- Thẻ KPI 4: Tỷ lệ bài bị Wrong Answer (WA) và quá thời gian (TLE) -->
       <div class="glass-panel p-5 rounded-2xl border border-rose-500/20">
         <div class="flex items-center justify-between text-slate-400 text-xs mb-2">
           <span class="uppercase font-bold">Tỷ lệ WA / TLE</span>
@@ -220,9 +264,9 @@ require_once __DIR__ . '/includes/sidebar.php';
       </div>
     </div>
 
-    <!-- 2. PHÂN BỐ PHÁN QUYẾT & NGÔN NGỮ -->
+    <!-- 2. KHỐI BIỂU ĐỒ PHÂN BỐ PHÁN QUYẾT & SO SÁNH HIỆU SUẤT NGÔN NGỮ -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <!-- Biểu đồ Phân bố Verdict -->
+      <!-- Cột trái (2/3 chiều rộng): Biểu đồ thanh ngang phân bố 6 trạng thái chấm -->
       <div class="lg:col-span-2 glass-panel rounded-2xl p-6 border border-white/10 space-y-4">
         <h2 class="text-sm font-bold text-white flex items-center space-x-2">
           <i class="fa-solid fa-chart-bar text-cyan-400"></i>
@@ -230,6 +274,7 @@ require_once __DIR__ . '/includes/sidebar.php';
         </h2>
 
         <?php
+          // Bảng cấu hình tên tiếng Việt và màu thanh tiến trình cho từng loại phán quyết
           $verdictMeta = [
             'AC'  => ['name' => 'Accepted (Đạt toàn bộ test)', 'bar' => 'from-emerald-500 to-teal-400', 'text' => 'text-emerald-400'],
             'WA'  => ['name' => 'Wrong Answer (Sai kết quả)', 'bar' => 'from-rose-500 to-red-400', 'text' => 'text-rose-400'],
@@ -242,6 +287,7 @@ require_once __DIR__ . '/includes/sidebar.php';
         <div class="space-y-3">
           <?php foreach ($verdictMeta as $code => $meta): ?>
             <?php
+              // Tính số lượng và phần trăm của từng loại phán quyết để đặt chiều rộng thanh (style="width: ...")
               $cnt = $verdicts[$code];
               $pct = $totalSubmissions > 0 ? round(($cnt / $totalSubmissions) * 100, 1) : 0;
             ?>
@@ -261,7 +307,7 @@ require_once __DIR__ . '/includes/sidebar.php';
         </div>
       </div>
 
-      <!-- So sánh Ngôn ngữ Python vs C++ -->
+      <!-- Cột phải (1/3 chiều rộng): Thẻ so sánh tổng lượt nộp, tỷ lệ AC và thời gian chạy TB giữa Python và C++ -->
       <div class="glass-panel rounded-2xl p-6 border border-white/10 space-y-4">
         <h2 class="text-sm font-bold text-white flex items-center space-x-2">
           <i class="fa-solid fa-code-branch text-purple-400"></i>
@@ -270,6 +316,7 @@ require_once __DIR__ . '/includes/sidebar.php';
 
         <?php foreach (['python' => ['label' => 'Python 3', 'icon' => 'fa-brands fa-python text-amber-400'], 'cpp' => ['label' => 'C++ (G++)', 'icon' => 'fa-solid fa-code text-blue-400']] as $lk => $lm): ?>
           <?php
+            // Tính tỷ lệ AC và lấy thời gian chạy trung bình của từng ngôn ngữ
             $ltot = (int)$langMap[$lk]['total_cnt'];
             $lac  = (int)$langMap[$lk]['ac_cnt'];
             $lrate = $ltot > 0 ? round(($lac / $ltot) * 100, 1) : 0;
@@ -298,7 +345,7 @@ require_once __DIR__ . '/includes/sidebar.php';
       </div>
     </div>
 
-    <!-- 3. BÁO CÁO KẾT QUẢ HỌC TẬP SINH VIÊN (LỌC & XUẤT BÁO CÁO) -->
+    <!-- 3. BẢNG BÁO CÁO KẾT QUẢ HỌC TẬP SINH VIÊN (KÈM FORM LỌC LỚP & KHOẢNG NGÀY) -->
     <div class="glass-panel rounded-2xl border border-white/10 overflow-hidden shadow-2xl">
       <div class="px-6 py-4 border-b border-white/10 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white/[0.02]">
         <div>
@@ -309,6 +356,7 @@ require_once __DIR__ . '/includes/sidebar.php';
           <p class="text-[11px] text-slate-400 mt-0.5">Điểm đánh giá (thang 10) được tính dựa trên tỷ lệ bài giải đúng (AC) trên tổng <?= $totalActiveProblems ?> bài tập đang mở.</p>
         </div>
 
+        <!-- Form lọc GET: Khi bấm "Lọc báo cáo", trình duyệt tải lại trang với tham số ?class_name=...&date_from=...&date_to=... -->
         <form method="GET" action="" class="flex flex-wrap items-center gap-2 text-xs">
           <select name="class_name" class="glass-input rounded-xl py-1.5 px-3 bg-slate-900 text-xs">
             <option value="">-- Tất cả Lớp --</option>
@@ -322,6 +370,7 @@ require_once __DIR__ . '/includes/sidebar.php';
         </form>
       </div>
 
+      <!-- Bảng liệt kê từng sinh viên: hạng, mã SV, họ tên, lớp, số bài AC, điểm thang 10 và tỷ lệ AC -->
       <div class="overflow-x-auto">
         <table class="w-full text-left border-collapse text-xs">
           <thead>
@@ -345,6 +394,7 @@ require_once __DIR__ . '/includes/sidebar.php';
             <?php else: ?>
               <?php foreach ($studentReport as $idx => $st): ?>
                 <?php
+                  // Tính toán tỷ lệ AC (%) và quy đổi điểm thang 10 theo tỷ lệ bài giải đúng trên tổng bài mở
                   $tot = (int)$st['total_submissions'];
                   $ac  = (int)$st['ac_submissions'];
                   $solved = (int)$st['solved_problems'];
@@ -380,7 +430,7 @@ require_once __DIR__ . '/includes/sidebar.php';
       </div>
     </div>
 
-    <!-- 4. THỐNG KÊ THEO TỪNG BÀI TẬP -->
+    <!-- 4. BẢNG THỐNG KÊ TỶ LỆ HOÀN THÀNH THEO TỪNG BÀI TẬP (TOP 20 BÀI NỘP NHIỀU NHẤT) -->
     <div class="glass-panel rounded-2xl border border-white/10 overflow-hidden shadow-2xl">
       <div class="px-6 py-4 border-b border-white/10 bg-white/[0.02]">
         <h2 class="text-base font-bold text-white flex items-center space-x-2">
@@ -403,6 +453,7 @@ require_once __DIR__ . '/includes/sidebar.php';
           <tbody class="divide-y divide-white/5">
             <?php foreach ($problemStats as $ps): ?>
               <?php
+                // Tính tỷ lệ bài nộp đúng (AC) riêng của từng bài tập
                 $ptot = (int)$ps['total_subs'];
                 $pac  = (int)$ps['ac_subs'];
                 $prate = $ptot > 0 ? round(($pac / $ptot) * 100, 1) : 0;
@@ -430,4 +481,7 @@ require_once __DIR__ . '/includes/sidebar.php';
   </main>
 </div>
 
-<?php require_once __DIR__ . '/includes/footer.php'; ?>
+<?php
+// Nạp phần chân trang chung (đóng thẻ body/html và các script tiện ích dùng chung)
+require_once __DIR__ . '/includes/footer.php';
+?>

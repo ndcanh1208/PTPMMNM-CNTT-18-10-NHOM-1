@@ -1,30 +1,50 @@
 <?php
 /**
+ * ============================================================================
  * Nhom1 Online Judge - Phân hệ Admin: Quản lý Chấm bài & Vận hành Hệ thống
- * - Giám sát hàng đợi chấm bài cô lập (Sandbox Queues) cho Python & C++
- * - Kích hoạt Rejudge cho toàn bộ bài tập hoặc sinh viên cụ thể
- * - Giám sát & xử lý lỗi hệ thống (SE, CE, tràn/treo hàng đợi)
+ * ============================================================================
+ * MỤC ĐÍCH TRANG NÀY:
+ * - Kiểm tra sức khỏe trình biên dịch / thông dịch trong môi trường chạy cô lập (Python & C++ G++ Sandbox).
+ * - Theo dõi số lượng lượt chấm trong hàng đợi (Queued, Running, Completed, SystemError, Superseded).
+ * - Kích hoạt chấm lại (Rejudge) hàng loạt theo bài tập, theo sinh viên, hoặc chấm lại từng bài nộp đơn lẻ.
+ * - Phát hiện và khắc phục sự cố vận hành: chấm lại các lượt bị lỗi hệ thống (SE) hoặc giải phóng tiến trình bị treo (>60 giây).
+ *
+ * CẤU TRÚC FILE GỒM 3 PHẦN:
+ * - PHẦN 1 (PHP): Xác thực Admin, kiểm tra phiên bản Python/G++, thống kê hàng đợi và truy vấn 60 lượt chấm mới nhất.
+ * - PHẦN 2 (HTML): Giao diện giám sát Sandbox, bảng hàng đợi, form kích hoạt Rejudge và nhật ký judging_runs.
+ * - PHẦN 3 (JavaScript): Các hàm AJAX gọi API /BaiTapLon/api/admin_judging.php để Rejudge và xử lý sự cố.
  */
 
+// Bật kiểm tra kiểu dữ liệu nghiêm ngặt trong PHP
 declare(strict_types=1);
 
+// Nạp cấu hình CSDL, lớp phân quyền (Auth), chống XSS (Security) và lớp điều khiển Sandbox (SandboxRunner)
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/core/Auth.php';
 require_once __DIR__ . '/core/Security.php';
 require_once __DIR__ . '/core/SandboxRunner.php';
 
+// Chỉ Quản trị viên ('admin') mới được phép mở trang vận hành chấm bài
 Auth::requireRoles(['admin']);
 
+// Kết nối CSDL và khởi tạo đối tượng SandboxRunner để dò tìm đường dẫn trình biên dịch trên máy chủ
 $pdo = getDbConnection();
 $sandbox = new SandboxRunner();
 
+// ============================================================================
+// PHẦN 1: KIỂM TRA MÔI TRƯỜNG SANDBOX & TRUY VẤN DỮ LIỆU HÀNG ĐỢI CHẤM BÀI
+// ============================================================================
+
+// Lấy đường dẫn thực thi của Python và trình biên dịch G++ (MinGW) rồi gọi lệnh "--version" để kiểm tra máy chủ có sẵn sàng không
+// Dấu '@' giúp ẩn cảnh báo PHP nếu shell_exec gặp lỗi; "2>&1" gộp luồng lỗi stderr vào stdout để đọc được kết quả
 $pyPath  = $sandbox->getPythonPath();
 $gppPath = $sandbox->getGppPath();
 $pyVer   = $pyPath ? trim((string)@shell_exec("\"{$pyPath}\" --version 2>&1")) : null;
 $gppRaw  = $gppPath ? trim((string)@shell_exec("\"{$gppPath}\" --version 2>&1")) : null;
+// G++ trả về nhiều dòng thông tin bản quyền nên chỉ lấy dòng đầu tiên (chứa tên + số phiên bản)
 $gppVer  = $gppRaw ? trim(explode("\n", $gppRaw)[0]) : null;
 
-// Thống kê hàng đợi theo ngôn ngữ
+// Truy vấn đếm số lượt chấm (judging_runs) nhóm theo Ngôn ngữ (python/cpp) và Trạng thái (Queued/Running/Completed/...)
 $queueRows = $pdo->query("
     SELECT s.language, jr.status, COUNT(*) AS cnt
     FROM judging_runs jr
@@ -32,6 +52,7 @@ $queueRows = $pdo->query("
     GROUP BY s.language, jr.status
 ")->fetchAll(PDO::FETCH_ASSOC);
 
+// Khởi tạo bảng ma trận thống kê mặc định bằng 0 rồi đổ dữ liệu truy vấn được vào đúng ô [ngôn_ngữ][trạng_thái]
 $langStats = [
     'python' => ['Queued' => 0, 'Running' => 0, 'Completed' => 0, 'SystemError' => 0, 'Superseded' => 0],
     'cpp'    => ['Queued' => 0, 'Running' => 0, 'Completed' => 0, 'SystemError' => 0, 'Superseded' => 0]
@@ -42,6 +63,7 @@ foreach ($queueRows as $r) {
     }
 }
 
+// Tính các chỉ số cảnh báo nhanh: tổng đang chờ, tổng đang chấm, tiến trình bị treo quá 60 giây, lỗi SE và lỗi biên dịch CE
 $totalQueued  = $langStats['python']['Queued'] + $langStats['cpp']['Queued'];
 $totalRunning = $langStats['python']['Running'] + $langStats['cpp']['Running'];
 $stalledCount = (int)$pdo->query("
@@ -51,11 +73,12 @@ $stalledCount = (int)$pdo->query("
 $seCount = (int)$pdo->query("SELECT COUNT(*) FROM judging_runs WHERE status = 'SystemError' OR verdict = 'SE'")->fetchColumn();
 $ceCount = (int)$pdo->query("SELECT COUNT(*) FROM judging_runs WHERE verdict = 'CE'")->fetchColumn();
 
-// Danh sách bài tập và sinh viên cho form Rejudge
+// Lấy danh sách tất cả bài tập và người dùng để đổ vào 2 hộp chọn <select> trong form kích hoạt Rejudge
 $problemsList = $pdo->query("SELECT id, slug, title, deleted_at FROM problems ORDER BY id ASC")->fetchAll(PDO::FETCH_ASSOC);
 $studentsList = $pdo->query("SELECT id, username, full_name, student_code, class_name FROM users ORDER BY role ASC, username ASC")->fetchAll(PDO::FETCH_ASSOC);
 
-// Bộ lọc nhật ký judging_runs
+// Xử lý tab lọc nhật ký lượt chấm từ URL (?filter=all|queued|se|ce|rejudge)
+// Chỉ ghép mệnh đề WHERE cố định theo whitelist nên đảm bảo an toàn tuyệt đối trước SQL Injection
 $filter = trim((string)($_GET['filter'] ?? 'all'));
 $whereRun = "1=1";
 if ($filter === 'queued') {
@@ -68,6 +91,7 @@ if ($filter === 'queued') {
     $whereRun = "jr.triggered_by IN ('rejudge', 'retry')";
 }
 
+// Truy vấn 60 lượt chấm gần nhất (JOIN với submissions, users, problems, problem_versions để hiển thị đủ thông tin)
 $runsStmt = $pdo->query("
     SELECT jr.*, s.language, s.problem_id, s.user_id, s.final_verdict,
            u.username, u.full_name, u.student_code,
@@ -84,14 +108,18 @@ $runsStmt = $pdo->query("
 ");
 $runs = $runsStmt->fetchAll(PDO::FETCH_ASSOC);
 
+// Thiết lập tiêu đề trang và nạp khung header + sidebar dùng chung
 $pageTitle = 'Vận hành Chấm bài & Rejudge';
 require_once __DIR__ . '/includes/header.php';
 require_once __DIR__ . '/includes/sidebar.php';
 ?>
 
+<!-- ========================================================================= -->
+<!-- PHẦN 2: GIAO DIỆN HTML (GIÁM SÁT SANDBOX, HÀNG ĐỢI, REJUDGE & NHẬT KÝ)     -->
+<!-- ========================================================================= -->
 <div class="pl-64 min-h-screen flex flex-col w-full">
   <main class="p-8 max-w-7xl w-full mx-auto space-y-6 flex-1">
-    <!-- Header -->
+    <!-- Khối tiêu đề trang và 2 nút cứu hộ nhanh (Chấm lại lỗi SE & Giải phóng tiến trình treo) -->
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div>
         <h1 class="text-2xl font-black text-white flex items-center space-x-3">
@@ -102,6 +130,7 @@ require_once __DIR__ . '/includes/sidebar.php';
           Giám sát hàng đợi thực thi cô lập (Python & C++ Sandbox), điều khiển Rejudge và xử lý sự cố hệ thống.
         </p>
       </div>
+      <!-- Nhóm nút thao tác khẩn cấp gọi hàm JS retrySystemErrors() -->
       <div class="flex items-center space-x-2">
         <button type="button" onclick="retrySystemErrors('retry_se')" class="px-3.5 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center space-x-1.5 cursor-pointer">
           <i class="fa-solid fa-rotate"></i>
@@ -114,19 +143,19 @@ require_once __DIR__ . '/includes/sidebar.php';
       </div>
     </div>
 
-    <!-- Thông báo phản hồi AJAX -->
+    <!-- Hộp thông báo phản hồi từ API AJAX (ẩn mặc định, hiện lên khi thực hiện Rejudge/Retry) -->
     <div id="judging-alert" class="hidden p-4 rounded-xl text-xs font-semibold"></div>
 
-    <!-- 1. GIÁM SÁT SANDBOX & HÀNG ĐỢI THEO NGÔN NGỮ -->
+    <!-- 1. KHỐI 3 CỘT: SANDBOX STATUS + BẢNG HÀNG ĐỢI + FORM KÍCH HOẠT REJUDGE -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
-      <!-- Trạng thái Trình biên dịch Sandbox -->
+      <!-- Cột 1: Hiển thị trạng thái kết nối trình thông dịch Python và trình biên dịch C++ G++ -->
       <div class="glass-panel rounded-2xl p-5 border border-white/10 space-y-4">
         <h2 class="text-sm font-bold text-white flex items-center space-x-2">
           <i class="fa-solid fa-microchip text-cyan-400"></i>
           <span>Trạng thái Môi trường Sandbox</span>
         </h2>
 
-        <!-- Python Sandbox -->
+        <!-- Thẻ trạng thái Python Sandbox (viền xanh nếu tìm thấy binary, đỏ nếu mất kết nối) -->
         <div class="p-3.5 rounded-xl bg-black/40 border <?= $pyPath ? 'border-emerald-500/30' : 'border-rose-500/40' ?> space-y-1">
           <div class="flex items-center justify-between">
             <span class="text-xs font-bold text-white flex items-center space-x-2">
@@ -142,7 +171,7 @@ require_once __DIR__ . '/includes/sidebar.php';
           </div>
         </div>
 
-        <!-- C++ Sandbox -->
+        <!-- Thẻ trạng thái C++ G++ Sandbox -->
         <div class="p-3.5 rounded-xl bg-black/40 border <?= $gppPath ? 'border-emerald-500/30' : 'border-rose-500/40' ?> space-y-1">
           <div class="flex items-center justify-between">
             <span class="text-xs font-bold text-white flex items-center space-x-2">
@@ -158,6 +187,7 @@ require_once __DIR__ . '/includes/sidebar.php';
           </div>
         </div>
 
+        <!-- 3 ô số liệu tóm tắt nhanh: Đang chờ (Queued), Đang chấm (Running), Lỗi hệ thống (SE) -->
         <div class="grid grid-cols-3 gap-2 pt-1 text-center text-xs">
           <div class="p-2 rounded-lg bg-white/5 border border-white/10">
             <div class="text-lg font-black <?= $totalQueued >= 50 ? 'text-rose-400' : 'text-amber-400' ?>"><?= $totalQueued ?></div>
@@ -174,7 +204,7 @@ require_once __DIR__ . '/includes/sidebar.php';
         </div>
       </div>
 
-      <!-- Bảng Hàng đợi theo Ngôn ngữ -->
+      <!-- Cột 2: Bảng thống kê hàng đợi chi tiết tách riêng theo Python và C++ -->
       <div class="glass-panel rounded-2xl p-5 border border-white/10 space-y-4">
         <h2 class="text-sm font-bold text-white flex items-center space-x-2">
           <i class="fa-solid fa-layer-group text-purple-400"></i>
@@ -211,6 +241,7 @@ require_once __DIR__ . '/includes/sidebar.php';
           </table>
         </div>
 
+        <!-- Khối cảnh báo phụ: tổng lỗi biên dịch CE, lượt chấm cũ bị thay thế (Superseded) và ngưỡng tràn hàng đợi >= 50 -->
         <div class="p-3 rounded-xl bg-white/5 border border-white/10 text-[11px] text-slate-400 space-y-1">
           <div class="flex justify-between">
             <span>Lỗi biên dịch (CE):</span>
@@ -227,7 +258,7 @@ require_once __DIR__ . '/includes/sidebar.php';
         </div>
       </div>
 
-      <!-- 2. ĐIỀU KHIỂN REJUDGE (CHẤM LẠI) -->
+      <!-- Cột 3: Form điều khiển Rejudge hàng loạt theo Bài tập và/hoặc Sinh viên -->
       <div class="glass-panel rounded-2xl p-5 border border-cyan-500/20 space-y-4">
         <h2 class="text-sm font-bold text-white flex items-center space-x-2">
           <i class="fa-solid fa-bolt text-cyan-400"></i>
@@ -237,6 +268,7 @@ require_once __DIR__ . '/includes/sidebar.php';
           Chấm lại toàn bộ bài nộp của một bài tập, một sinh viên cụ thể, hoặc kết hợp cả hai. Hệ thống tự tạo bản ghi <code class="text-cyan-300">judging_runs</code> mới và bảo toàn lịch sử cũ.
         </p>
 
+        <!-- Form chặn tải lại trang bằng onsubmit="submitRejudge(event)" để gửi yêu cầu AJAX -->
         <form id="rejudge-form" onsubmit="submitRejudge(event)" class="space-y-3 text-xs">
           <div>
             <label class="block text-[11px] uppercase font-bold text-slate-300 mb-1">Theo Bài tập</label>
@@ -270,11 +302,13 @@ require_once __DIR__ . '/includes/sidebar.php';
       </div>
     </div>
 
-    <!-- 3. NHẬT KÝ HÀNG ĐỢI & XỬ LÝ LỖI HỆ THỐNG -->
+    <!-- 3. BẢNG NHẬT KÝ HÀNG ĐỢI CHẤM BÀI (JUDGING_RUNS) KÈM TAB LỌC TRẠNG THÁI -->
     <div class="glass-panel rounded-2xl border border-white/10 overflow-hidden shadow-2xl">
+      <!-- Thanh tab lọc nhanh bằng tham số GET (?filter=...) -->
       <div class="px-6 py-4 border-b border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/[0.02]">
         <div class="flex items-center space-x-2 flex-wrap gap-y-2">
           <?php
+            // Danh sách 5 tab lọc nhật ký tương ứng với nhánh if/elseif ở phần PHP phía trên
             $tabs = [
               'all'     => ['label' => 'Tất cả lượt chấm', 'icon' => 'fa-list'],
               'queued'  => ['label' => 'Đang chờ / Chạy', 'icon' => 'fa-hourglass-half'],
@@ -293,6 +327,7 @@ require_once __DIR__ . '/includes/sidebar.php';
         <span class="text-xs text-slate-400 font-mono">Hiển thị tối đa 60 bản ghi mới nhất</span>
       </div>
 
+      <!-- Bảng liệt kê từng lượt chấm (judging_runs) kèm chi tiết lỗi CE/SE và nút Rejudge đơn lẻ -->
       <div class="overflow-x-auto">
         <table class="w-full text-left border-collapse text-xs">
           <thead>
@@ -318,6 +353,7 @@ require_once __DIR__ . '/includes/sidebar.php';
             <?php else: ?>
               <?php foreach ($runs as $r): ?>
                 <?php
+                  // Chọn class CSS màu sắc nhãn phán quyết (AC xanh, WA đỏ, TLE vàng...) và ưu tiên lấy log lỗi hệ thống hoặc log biên dịch
                   $v = $r['verdict'];
                   $vClass = match($v) {
                     'AC' => 'badge-ac', 'WA' => 'badge-wa', 'TLE' => 'badge-tle',
@@ -358,6 +394,7 @@ require_once __DIR__ . '/includes/sidebar.php';
                   </td>
                   <td class="py-3 px-4 max-w-[240px]">
                     <?php if ($errLog !== ''): ?>
+                      <!-- Cắt gọn 110 ký tự hiển thị trên bảng; rê chuột vào thuộc tính title để xem toàn bộ log lỗi -->
                       <div class="font-mono text-[10px] text-rose-300 bg-rose-500/10 border border-rose-500/20 rounded p-1.5 truncate" title="<?= Security::escape($errLog) ?>">
                         <?= Security::escape(mb_substr($errLog, 0, 110)) ?>
                       </div>
@@ -366,6 +403,7 @@ require_once __DIR__ . '/includes/sidebar.php';
                     <?php endif; ?>
                   </td>
                   <td class="py-3 px-4 text-right">
+                    <!-- Nút chấm lại riêng 1 bài nộp cụ thể bằng hàm JS rejudgeSingle() -->
                     <button type="button" onclick="rejudgeSingle(<?= (int)$r['submission_id'] ?>)" class="px-2.5 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-[11px] font-semibold cursor-pointer" title="Chấm lại bài nộp này">
                       <i class="fa-solid fa-rotate-right mr-1"></i>Rejudge
                     </button>
@@ -380,7 +418,11 @@ require_once __DIR__ . '/includes/sidebar.php';
   </main>
 </div>
 
+<!-- ========================================================================= -->
+<!-- PHẦN 3: JAVASCRIPT GỌI API ĐIỀU KHIỂN REJUDGE & XỬ LÝ SỰ CỐ HÀNG ĐỢI      -->
+<!-- ========================================================================= -->
 <script>
+// Hàm hiển thị hộp thông báo kết quả AJAX (xanh lá khi thành công, đỏ khi thất bại)
 function showJudgingAlert(msg, isSuccess = true) {
   const el = document.getElementById('judging-alert');
   el.classList.remove('hidden', 'bg-emerald-500/10', 'border-emerald-500/30', 'text-emerald-300', 'bg-rose-500/10', 'border-rose-500/30', 'text-rose-300');
@@ -392,20 +434,25 @@ function showJudgingAlert(msg, isSuccess = true) {
   el.innerHTML = `<i class="fa-solid ${isSuccess ? 'fa-circle-check' : 'fa-triangle-exclamation'} mr-2"></i>${msg}`;
 }
 
+// Hàm xử lý submit form Rejudge hàng loạt (theo Bài tập và/hoặc theo Sinh viên)
 async function submitRejudge(e) {
+  // Ngăn hành vi tải lại trang mặc định của thẻ <form>
   e.preventDefault();
   const problemId = document.getElementById('rj-problem-id').value;
   const userId = document.getElementById('rj-user-id').value;
+  // Bắt buộc chọn ít nhất 1 tiêu chí để tránh vô tình Rejudge toàn bộ CSDL cùng lúc
   if (!problemId && !userId) {
     showJudgingAlert('Vui lòng chọn ít nhất một Bài tập hoặc một Sinh viên cụ thể.', false);
     return;
   }
 
+  // Khóa nút bấm và hiện biểu tượng xoay (spinner) trong lúc chờ API xử lý
   const btn = document.getElementById('btn-trigger-rejudge');
   btn.disabled = true;
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>Đang tạo hàng đợi Rejudge...</span>';
 
   try {
+    // Gửi yêu cầu POST dạng JSON tới /BaiTapLon/api/admin_judging.php
     const res = await fetch('/BaiTapLon/api/admin_judging.php', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -414,14 +461,17 @@ async function submitRejudge(e) {
     const data = await res.json();
     if (!res.ok || !data.success) throw new Error(data.error || 'Lỗi kích hoạt Rejudge.');
     showJudgingAlert(data.message, true);
+    // Đợi 0.9 giây rồi tải lại trang để cập nhật bảng hàng đợi và nhật ký mới nhất
     setTimeout(() => window.location.reload(), 900);
   } catch (err) {
+    // Nếu có lỗi -> báo lỗi và mở khóa lại nút bấm để Admin thử lại
     showJudgingAlert(err.message, false);
     btn.disabled = false;
     btn.innerHTML = '<i class="fa-solid fa-play"></i><span>Kích Hoạt Chấm Lại (Rejudge)</span>';
   }
 }
 
+// Hàm kích hoạt Rejudge cho duy nhất 1 bài nộp cụ thể (bấm từ nút "Rejudge" trên từng dòng bảng)
 async function rejudgeSingle(submissionId) {
   if (!confirm(`Kích hoạt chấm lại (Rejudge) cho bài nộp #${submissionId}?`)) return;
   try {
@@ -439,6 +489,9 @@ async function rejudgeSingle(submissionId) {
   }
 }
 
+// Hàm xử lý 2 nút cứu hộ sự cố trên đầu trang:
+// - actionType = 'retry_se': đẩy lại các lượt chấm bị lỗi hệ thống (SE) vào hàng đợi
+// - actionType = 'release_stalled': giải phóng các lượt chấm bị treo ở trạng thái Running quá 60 giây
 async function retrySystemErrors(actionType) {
   const label = actionType === 'release_stalled' ? 'giải phóng các tiến trình treo (>60s)' : 'chấm lại toàn bộ các bài bị lỗi hệ thống (SE)';
   if (!confirm(`Bạn có chắc muốn ${label}?`)) return;
@@ -458,4 +511,7 @@ async function retrySystemErrors(actionType) {
 }
 </script>
 
-<?php require_once __DIR__ . '/includes/footer.php'; ?>
+<?php
+// Nạp phần chân trang chung của hệ thống
+require_once __DIR__ . '/includes/footer.php';
+?>

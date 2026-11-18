@@ -1,39 +1,51 @@
 /* ==============================================================================
-   BYTEFLOW ONLINE JUDGE - DESIGN SYSTEM (DARK GLASSMORPHISM)
-   Bảng màu: Đen sâu (#050507), Xám đậm (#12161f), Cyan phát sáng (#00FFFF)
+   BYTEFLOW ONLINE JUDGE - DESIGN SYSTEM (HỆ THỐNG GIAO DIỆN DARK GLASSMORPHISM)
+   Bảng màu chủ đạo: Đen sâu (#050507), Xám đậm (#12161f), Cyan phát sáng (#00FFFF)
+   Mục đích của file CSS này:
+   - Định nghĩa biến màu dùng chung (:root), phông chữ, hình nền ánh sáng loang.
+   - Tạo các lớp tiện ích kính mờ (Glassmorphism), nút bấm phát sáng (Neon Buttons),
+     phù hiệu kết quả chấm bài (Verdict Badges), thanh cuộn tùy chỉnh và giao diện
+     trình soạn thảo mã nguồn CodeMirror.
    ============================================================================== */
 
+/* Nạp 2 bộ phông chữ từ Google Fonts: Inter (chữ văn bản hiện đại) và JetBrains Mono (chữ đơn cách cho mã nguồn) */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
+/* Khai báo các biến CSS toàn cục (:root) để tái sử dụng đồng nhất khắp file CSS */
 :root {
-  --bg-deep: #050507;
-  --bg-card: rgba(18, 22, 31, 0.7);
-  --bg-card-subtle: rgba(25, 30, 42, 0.55);
-  --bg-input: rgba(10, 13, 20, 0.65);
-  --border-glass: rgba(255, 255, 255, 0.1);
-  --border-glass-hover: rgba(0, 255, 255, 0.4);
-  --cyan-accent: #00FFFF;
-  --cyan-glow: rgba(0, 255, 255, 0.35);
-  --font-sans: 'Times New Roman', Times, serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  --bg-deep: #050507;                          /* Màu nền tối sâu nhất cho toàn trang */
+  --bg-card: rgba(18, 22, 31, 0.7);            /* Màu nền bán trong suốt (70%) cho khung lớn / sidebar */
+  --bg-card-subtle: rgba(25, 30, 42, 0.55);    /* Màu nền bán trong suốt nhẹ hơn (55%) cho các thẻ nội dung (card) */
+  --bg-input: rgba(10, 13, 20, 0.65);          /* Màu nền bán trong suốt cho các ô nhập liệu (input, select, textarea) */
+  --border-glass: rgba(255, 255, 255, 0.1);    /* Màu viền trắng mờ 10% tạo cạnh kính sắc nét */
+  --border-glass-hover: rgba(0, 255, 255, 0.4);/* Màu viền xanh Cyan mờ 40% khi rê chuột vào thẻ */
+  --cyan-accent: #00FFFF;                      /* Màu nhấn chính (xanh ngọc Neon) */
+  --cyan-glow: rgba(0, 255, 255, 0.35);        /* Màu đổ bóng phát sáng xanh Cyan */
+  --font-sans: 'Times New Roman', Times, serif;/* Biến phông chữ mặc định cho văn bản thường */
+  --font-mono: 'JetBrains Mono', monospace;    /* Biến phông chữ đơn cách (mọi ký tự rộng bằng nhau) cho code */
 }
 
+/* Kiểu dáng nền tảng áp dụng cho toàn bộ thẻ <body> của trang web */
 body {
-  font-family: var(--font-sans);
-  background-color: var(--bg-deep);
-  color: #E2E8F0;
-  overflow-x: hidden;
-  min-height: 100vh;
+  font-family: var(--font-sans); /* Áp dụng phông chữ khai báo trong biến --font-sans */
+  background-color: var(--bg-deep); /* Nền đen sâu */
+  color: #E2E8F0;                /* Màu chữ mặc định xám trắng sáng, dễ đọc trên nền tối */
+  overflow-x: hidden;            /* Ẩn thanh cuộn ngang để tránh vỡ bố cục khi có hiệu ứng tràn nhẹ */
+  min-height: 100vh;             /* Chiều cao tối thiểu luôn phủ kín 100% chiều cao cửa sổ trình duyệt */
 }
 
+/* ==============================================================================
+   NỀN TRANG TRÍ CHUYỂN SẮC 3 TẦNG (ĐEN SÂU - XÁM ĐẬM - ÁNH SÁNG CYAN)
+   ============================================================================== */
 /* Nền chuyển động 3 màu Đen sâu - Xám đậm - Cyan */
 .animated-bg {
-  position: fixed;
+  position: fixed; /* Ghim cố định theo màn hình, không bị trôi khi cuộn trang */
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: -1;
+  z-index: -1;     /* Đặt nằm phía sau toàn bộ nội dung trang web */
+  /* Xếp chồng 3 lớp dải màu tròn (radial-gradient) tạo hiệu ứng đèn nền mờ ở góc trên-trái, dưới-phải và chính giữa */
   background: 
     radial-gradient(circle at 15% 15%, rgba(0, 255, 255, 0.08) 0%, transparent 40%),
     radial-gradient(circle at 85% 85%, rgba(0, 150, 255, 0.06) 0%, transparent 45%),
@@ -41,88 +53,108 @@ body {
   background-attachment: fixed;
 }
 
-/* Hiệu ứng Glassmorphism */
+/* ==============================================================================
+   HIỆU ỨNG KÍNH MỜ (GLASSMORPHISM) CHO PANEL, CARD VÀ Ô NHẬP LIỆU
+   ============================================================================== */
+/* Hiệu ứng Glassmorphism cho các khung lớn (như Sidebar, hộp thoại Modal) */
 .glass-panel {
   background: var(--bg-card);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);         /* Làm mờ hậu cảnh phía sau tấm kính bán kính 16px */
+  -webkit-backdrop-filter: blur(16px); /* Hỗ trợ thêm cho trình duyệt Safari / WebKit */
   border: 1px solid var(--border-glass);
 }
 
+/* Thẻ nội dung kính mờ (dùng cho thẻ thống kê, thẻ bài tập, bảng dữ liệu) */
 .glass-card {
   background: var(--bg-card-subtle);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--border-glass);
+  /* Tạo chuyển động mượt 0.3 giây cho mọi thay đổi (viền, bóng, vị trí) khi tương tác */
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Hiệu ứng khi rê chuột (hover) vào .glass-card: sáng viền Cyan, tỏa bóng nhẹ và nhấc thẻ lên 2px */
 .glass-card:hover {
   border-color: var(--border-glass-hover);
   box-shadow: 0 4px 20px rgba(0, 255, 255, 0.12);
   transform: translateY(-2px);
 }
 
+/* Kiểu kính mờ cho các ô nhập liệu (<input>, <textarea>, <select>) */
 .glass-input {
   background: var(--bg-input);
   border: 1px solid var(--border-glass);
-  color: #F8FAFC;
+  color: #F8FAFC; /* Chữ nhập vào có màu trắng sáng */
   transition: all 0.2s ease;
 }
 
+/* Hiệu ứng khi người dùng bấm con trỏ vào ô nhập liệu (focus): viền sáng Cyan, bỏ viền xanh mặc định của trình duyệt */
 .glass-input:focus {
   border-color: var(--cyan-accent);
   box-shadow: 0 0 10px var(--cyan-glow);
   outline: none;
 }
 
+/* ==============================================================================
+   HIỆU ỨNG PHÁT SÁNG NEON & CÁC KIỂU NÚT BẤM (BUTTONS)
+   ============================================================================== */
 /* Neon Glow & Buttons */
+
+/* Lớp tiện ích thêm hào quang phát sáng Cyan quanh phần tử */
 .neon-glow {
   box-shadow: 0 0 15px var(--cyan-glow);
 }
 
+/* Lớp tiện ích đổi màu viền sang xanh Cyan rực */
 .neon-border {
   border-color: var(--cyan-accent);
 }
 
+/* Lớp tiện ích tạo chữ màu Cyan có ánh sáng tỏa nhẹ (text-shadow) */
 .neon-text {
   color: var(--cyan-accent);
   text-shadow: 0 0 8px rgba(0, 255, 255, 0.4);
 }
 
+/* Nút bấm hành động nổi bật dạng Neon cỡ lớn (dùng !important để ghi đè các class mặc định của Tailwind nếu cần) */
 .neon-button {
-  background: linear-gradient(135deg, #00FFFF 0%, #00B4D8 100%) !important;
-  color: #050507 !important;
-  font-weight: 700 !important;
-  border-radius: 0.75rem;
-  box-shadow: 0 0 15px rgba(0, 255, 255, 0.4) !important;
+  background: linear-gradient(135deg, #00FFFF 0%, #00B4D8 100%) !important; /* Nền chuyển sắc chéo 135 độ từ Cyan sáng sang xanh ngọc */
+  color: #050507 !important;                                                /* Chữ màu đen sâu để tương phản rõ trên nền sáng */
+  font-weight: 700 !important;                                              /* Chữ in đậm */
+  border-radius: 0.75rem;                                                   /* Bo tròn 4 góc 12px */
+  box-shadow: 0 0 15px rgba(0, 255, 255, 0.4) !important;                   /* Đổ bóng phát sáng xung quanh nút */
   transition: all 0.25s ease !important;
-  display: inline-flex !important;
+  display: inline-flex !important;                                          /* Căn giữa icon và chữ trên cùng một hàng */
   align-items: center !important;
   justify-content: center !important;
-  cursor: pointer;
+  cursor: pointer;                                                          /* Đổi con trỏ chuột thành hình bàn tay */
 }
 
+/* Khi rê chuột vào .neon-button: ánh sáng tỏa mạnh hơn và nút nâng nhẹ lên 1px */
 .neon-button:hover {
   box-shadow: 0 0 25px rgba(0, 255, 255, 0.7) !important;
   transform: translateY(-1px);
 }
 
+/* Nút bấm màu Cyan chuẩn (dùng cho nút Đăng nhập, Nộp bài, Lưu dữ liệu...) */
 .btn-cyan {
   background: linear-gradient(135deg, #00FFFF 0%, #00B4D8 100%);
   color: #050507;
   font-weight: 600;
-  border-radius: 0.5rem;
-  padding: 0.5rem 1.25rem;
+  border-radius: 0.5rem;      /* Bo góc 8px */
+  padding: 0.5rem 1.25rem;    /* Đệm trong: trên-dưới 8px, trái-phải 20px */
   transition: all 0.25s ease;
   box-shadow: 0 0 12px rgba(0, 255, 255, 0.35);
 }
 
+/* Trạng thái rê chuột cho .btn-cyan */
 .btn-cyan:hover {
   box-shadow: 0 0 20px rgba(0, 255, 255, 0.6);
   transform: translateY(-1px);
 }
 
+/* Nút bấm phụ dạng kính trong suốt (dùng cho nút Hủy, Quay lại, Chạy thử...) */
 .btn-glass {
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -133,120 +165,148 @@ body {
   transition: all 0.25s ease;
 }
 
+/* Khi rê chuột vào .btn-glass: sáng nền nhẹ, viền chuyển xanh Cyan và chữ sáng trắng */
 .btn-glass:hover {
   background: rgba(255, 255, 255, 0.1);
   border-color: var(--cyan-accent);
   color: #FFFFFF;
 }
 
+/* ==============================================================================
+   PHÙ HIỆU KẾT QUẢ CHẤM BÀI (VERDICT BADGES)
+   Mỗi trạng thái chấm bài trong Online Judge có một màu sắc nhận diện riêng biệt:
+   ============================================================================== */
 /* Phù hiệu kết quả (Verdict Badges) */
+
+/* AC - Accepted (Chính xác toàn bộ test): Màu xanh ngọc lục bảo */
 .badge-ac {
   background: rgba(16, 185, 129, 0.15);
   color: #10B981;
   border: 1px solid rgba(16, 185, 129, 0.3);
 }
 
+/* WA - Wrong Answer (Kết quả sai): Màu đỏ */
 .badge-wa {
   background: rgba(239, 68, 68, 0.15);
   color: #EF4444;
   border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
+/* TLE - Time Limit Exceeded (Quá thời gian thực thi): Màu vàng hổ phách */
 .badge-tle {
   background: rgba(245, 158, 11, 0.15);
   color: #F59E0B;
   border: 1px solid rgba(245, 158, 11, 0.3);
 }
 
+/* RE - Runtime Error (Lỗi khi đang chạy chương trình, VD: chia cho 0, tràn mảng): Màu tím hồng */
 .badge-re {
   background: rgba(217, 70, 239, 0.15);
   color: #D946EF;
   border: 1px solid rgba(217, 70, 239, 0.3);
 }
 
+/* CE - Compile Error (Lỗi biên dịch cú pháp): Màu cam */
 .badge-ce {
   background: rgba(249, 115, 22, 0.15);
   color: #F97316;
   border: 1px solid rgba(249, 115, 22, 0.3);
 }
 
+/* SE - System Error (Lỗi hệ thống chấm): Màu xám xanh */
 .badge-se {
   background: rgba(148, 163, 184, 0.15);
   color: #94A3B8;
   border: 1px solid rgba(148, 163, 184, 0.3);
 }
 
+/* Pending / Queued / Judging (Đang chờ hoặc đang chấm): Màu xanh dương */
 .badge-pending {
   background: rgba(59, 130, 246, 0.15);
   color: #3B82F6;
   border: 1px solid rgba(59, 130, 246, 0.3);
 }
 
+/* ==============================================================================
+   TÙY CHỈNH THANH CUỘN (CUSTOM SCROLLBAR CHO CHROME, EDGE, SAFARI)
+   ============================================================================== */
 /* Custom Scrollbar */
+/* Kích thước thanh cuộn dọc (width) và ngang (height) mảnh gọn 7px */
 ::-webkit-scrollbar {
   width: 7px;
   height: 7px;
 }
+/* Đường rãnh nền của thanh cuộn */
 ::-webkit-scrollbar-track {
   background: rgba(10, 13, 20, 0.5);
 }
+/* Con trượt (tay nắm kéo) của thanh cuộn màu trắng mờ bo góc */
 ::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.15);
   border-radius: 4px;
 }
+/* Đổi con trượt sang màu xanh Cyan khi người dùng rê chuột vào kéo */
 ::-webkit-scrollbar-thumb:hover {
   background: var(--cyan-accent);
 }
 
-/* Trình soạn thảo & Code font */
+/* Trình soạn thảo & Code font: ép sử dụng phông đơn cách JetBrains Mono cho các đoạn mã */
 .font-mono-code {
   font-family: var(--font-mono);
 }
 
 /* ==============================================================================
    CODEMIRROR DARK GLASSMORPHISM STYLES & ERROR LINE HIGHLIGHTING
+   Tùy biến giao diện cho thư viện trình soạn thảo code CodeMirror trên trang giải bài
    ============================================================================== */
+/* Khung bao chính của trình soạn thảo CodeMirror: phủ kín 100% hộp chứa cha */
 .CodeMirror {
-  font-family: var(--font-mono) !important;
-  font-size: 13.5px !important;
-  line-height: 1.6 !important;
-  position: absolute !important;
+  font-family: var(--font-mono) !important; /* Phông chữ lập trình đơn cách */
+  font-size: 13.5px !important;             /* Cỡ chữ dễ đọc khi gõ code */
+  line-height: 1.6 !important;              /* Giãn dòng thoáng 1.6 lần */
+  position: absolute !important;            /* Ghim sát 4 cạnh khung chứa cha */
   top: 0 !important;
   bottom: 0 !important;
   left: 0 !important;
   right: 0 !important;
   height: 100% !important;
   width: 100% !important;
-  background: #070A0F !important;
-  color: #F1F5F9 !important;
+  background: #070A0F !important;           /* Nền đen xanh đậm dịu mắt khi code lâu */
+  color: #F1F5F9 !important;                /* Màu chữ code sáng */
 }
 
+/* Vùng cuộn bên trong CodeMirror: tự động hiện thanh cuộn khi code dài vượt khung */
 .CodeMirror-scroll {
   height: 100% !important;
   overflow-y: auto !important;
   overflow-x: auto !important;
 }
 
+/* Cột lề trái chứa số thứ tự dòng (Gutter) */
 .CodeMirror-gutters {
   background: rgba(10, 13, 20, 0.7) !important;
   border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
   padding-right: 4px;
 }
 
+/* Kiểu chữ số thứ tự từng dòng (1, 2, 3...) ở lề trái */
 .CodeMirror-linenumber {
   color: #64748B !important;
   font-size: 11px !important;
 }
 
+/* Con trỏ nhấp nháy nơi đang gõ code: vạch dọc 2px màu xanh Cyan nổi bật */
 .CodeMirror-cursor {
   border-left: 2px solid var(--cyan-accent) !important;
 }
 
+/* Màu nền vùng văn bản code đang được bôi đen chọn */
 .CodeMirror-selected {
   background: rgba(0, 255, 255, 0.2) !important;
 }
 
 /* Bắt lỗi ngoặc & Cặp ngoặc */
+/* Tô sáng cặp dấu ngoặc khớp nhau (), {}, [] bằng màu Cyan và gạch chân */
 .CodeMirror-matchingbracket {
   color: #00FFFF !important;
   font-weight: bold !important;
@@ -254,13 +314,14 @@ body {
   background: rgba(0, 255, 255, 0.15) !important;
 }
 
+/* Cảnh báo dấu ngoặc lẻ/không khớp bằng màu đỏ nổi bật để lập trình viên dễ phát hiện lỗi cú pháp */
 .CodeMirror-nonmatchingbracket {
   color: #FF5555 !important;
   background: rgba(255, 0, 0, 0.35) !important;
   border-bottom: 2px solid #FF5555 !important;
 }
 
-/* Báo đỏ dòng lỗi sau khi bấm Chạy thử */
+/* Báo đỏ dòng lỗi sau khi bấm Chạy thử (tô nền đỏ hồng + thanh dọc đỏ bên trái dòng gặp lỗi biên dịch/thực thi) */
 .cm-error-line {
   background: rgba(225, 29, 72, 0.25) !important;
   border-left: 4px solid #F43F5E !important;
