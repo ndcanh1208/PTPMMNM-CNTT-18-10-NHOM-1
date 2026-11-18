@@ -64,46 +64,39 @@ require_once __DIR__ . '/includes/sidebar.php';
 <div class="pl-64 min-h-screen flex flex-col w-full">
   <main class="p-8 max-w-7xl w-full mx-auto space-y-8 flex-1">
     
-    <!-- Top Banner -->
-    <div class="glass-panel rounded-3xl p-8 relative overflow-hidden border border-white/10 shadow-2xl">
-      <div class="absolute -right-16 -top-16 w-80 h-80 bg-cyan-500/15 rounded-full blur-3xl pointer-events-none"></div>
-      <div class="absolute right-40 -bottom-20 w-60 h-60 bg-blue-600/15 rounded-full blur-3xl pointer-events-none"></div>
-      
-      <div class="relative z-10 max-w-2xl space-y-3">
-        <div class="inline-flex items-center space-x-2 px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-semibold">
-          <i class="fa-solid fa-bolt text-xs"></i>
-          <span>Hệ thống Chấm bài Trực tuyến Thế hệ Mới</span>
-        </div>
-        <h1 class="text-3xl font-black tracking-tight text-white sm:text-4xl">
-          Chào mừng đến với <span class="text-cyan-400">Nhom1</span> Online Judge
+    <!-- Tiêu đề trang Tổng quan -->
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-black tracking-tight text-white flex items-center space-x-2.5">
+          <i class="fa-solid fa-gauge-high text-cyan-400"></i>
+          <span>Tổng quan Hệ thống</span>
         </h1>
-        <p class="text-slate-300 text-sm leading-relaxed">
-          Nền tảng luyện tập lập trình trực tuyến bảo mật, tách biệt tiến trình thực thi cách ly, hỗ trợ quản lý đa phiên bản bộ test và chấm lại tự động đối chiếu song song.
+        <p class="text-xs text-slate-400 mt-1">
+          Nền tảng luyện tập và chấm bài lập trình trực tuyến (Python 3 &amp; C++17).
         </p>
-
-        <div class="pt-2 flex flex-wrap gap-3">
-          <a href="/BaiTapLon/problems.php" class="btn-cyan flex items-center space-x-2 text-sm font-semibold">
-            <i class="fa-solid fa-play text-xs"></i>
-            <span>Bắt đầu Luyện tập</span>
+      </div>
+      <div class="flex flex-wrap items-center gap-2.5">
+        <a href="/BaiTapLon/problems.php" class="btn-cyan flex items-center space-x-2 text-xs py-2.5 px-4 font-bold">
+          <i class="fa-solid fa-play text-[10px]"></i>
+          <span>Bắt đầu Luyện tập</span>
+        </a>
+        <?php if (Auth::isInstructor() || Auth::isAdmin()): ?>
+          <a href="/BaiTapLon/manage_problems.php" class="btn-glass flex items-center space-x-2 text-xs py-2.5 px-4 font-semibold text-cyan-300 border-cyan-500/30">
+            <i class="fa-solid fa-plus text-[10px]"></i>
+            <span>Tạo đề bài mới</span>
           </a>
-          <?php if (Auth::isInstructor() || Auth::isAdmin()): ?>
-            <a href="/BaiTapLon/manage_problems.php" class="btn-cyan flex items-center space-x-2 text-sm font-bold text-black shadow-[0_0_15px_rgba(0,255,255,0.4)]">
-              <i class="fa-solid fa-plus text-black"></i>
-              <span>Tạo đề bài mới</span>
-            </a>
-          <?php endif; ?>
-          <?php if (!$currentUser): ?>
-            <a href="/BaiTapLon/login.php" class="btn-glass flex items-center space-x-2 text-sm font-semibold">
-              <i class="fa-solid fa-arrow-right-to-bracket text-xs"></i>
-              <span>Đăng nhập thử nghiệm</span>
-            </a>
-          <?php else: ?>
-            <a href="/BaiTapLon/submissions.php" class="btn-glass flex items-center space-x-2 text-sm font-semibold">
-              <i class="fa-solid fa-clock-rotate-left text-xs"></i>
-              <span>Bài nộp của tôi</span>
-            </a>
-          <?php endif; ?>
-        </div>
+        <?php endif; ?>
+        <?php if (!$currentUser): ?>
+          <a href="/BaiTapLon/login.php" class="btn-glass flex items-center space-x-2 text-xs py-2.5 px-4 font-semibold">
+            <i class="fa-solid fa-arrow-right-to-bracket text-[10px]"></i>
+            <span>Đăng nhập</span>
+          </a>
+        <?php else: ?>
+          <a href="/BaiTapLon/submissions.php" class="btn-glass flex items-center space-x-2 text-xs py-2.5 px-4 font-semibold">
+            <i class="fa-solid fa-clock-rotate-left text-[10px]"></i>
+            <span>Bài nộp của tôi</span>
+          </a>
+        <?php endif; ?>
       </div>
     </div>
 
