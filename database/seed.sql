@@ -1,8 +1,9 @@
 -- ==============================================================================
 -- BYTEFLOW ONLINE JUDGE - DỮ LIỆU KHỞI TẠO MẪU (seed.sql)
 -- Khởi tạo:
--- 1. 4 Tài khoản mẫu: admin1, instructor1, learner1, learner2 (Password: Password123@)
--- 2. 1 Lớp học mẫu và danh sách thành viên
+-- 1. 2 Tài khoản quản trị khởi tạo: admin1, instructor1 (Password: Password123@)
+--    (Tài khoản sinh viên đăng ký chính thức qua trang register.php)
+-- 2. 1 Lớp học mẫu
 -- 3. 10 Bài tập lập trình chuẩn kèm phiên bản (v1) và bộ testcase (ít nhất 5 test/bài)
 -- ==============================================================================
 
@@ -10,7 +11,7 @@ SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- ------------------------------------------------------------------------------
--- 1. KHỞI TẠO TÀI KHOẢN MẪU (Mật khẩu chung: Password123@)
+-- 1. KHỞI TẠO TÀI KHOẢN QUẢN TRỊ & GIẢNG VIÊN (Mật khẩu chung: Password123@)
 -- Hash Bcrypt: $2y$10$NwxgSH.Jx1/WncQ8f0ZelucdKhR/Sx6qo45ULnVhZtYc1UtmOac26
 -- ------------------------------------------------------------------------------
 TRUNCATE TABLE `classroom_members`;
@@ -26,19 +27,13 @@ TRUNCATE TABLE `users`;
 
 INSERT INTO `users` (`id`, `username`, `email`, `password_hash`, `full_name`, `role`, `created_at`) VALUES
 (1, 'admin1', 'admin1@byteflow.local', '$2y$10$NwxgSH.Jx1/WncQ8f0ZelucdKhR/Sx6qo45ULnVhZtYc1UtmOac26', 'Quản trị viên Hệ thống', 'admin', NOW()),
-(2, 'instructor1', 'instructor1@byteflow.local', '$2y$10$NwxgSH.Jx1/WncQ8f0ZelucdKhR/Sx6qo45ULnVhZtYc1UtmOac26', 'TS. Nguyễn Văn Giảng', 'instructor', NOW()),
-(3, 'learner1', 'learner1@byteflow.local', '$2y$10$NwxgSH.Jx1/WncQ8f0ZelucdKhR/Sx6qo45ULnVhZtYc1UtmOac26', 'Trần Văn Học', 'learner', NOW()),
-(4, 'learner2', 'learner2@byteflow.local', '$2y$10$NwxgSH.Jx1/WncQ8f0ZelucdKhR/Sx6qo45ULnVhZtYc1UtmOac26', 'Lê Thị Minh', 'learner', NOW());
+(2, 'instructor1', 'instructor1@byteflow.local', '$2y$10$NwxgSH.Jx1/WncQ8f0ZelucdKhR/Sx6qo45ULnVhZtYc1UtmOac26', 'TS. Nguyễn Văn Giảng', 'instructor', NOW());
 
 -- ------------------------------------------------------------------------------
 -- 2. KHỞI TẠO LỚP HỌC MẪU
 -- ------------------------------------------------------------------------------
 INSERT INTO `classrooms` (`id`, `name`, `code`, `instructor_id`, `created_at`) VALUES
 (1, 'Nhập môn Lập trình & Cấu trúc Dữ liệu - K2026', 'CS101-2026', 2, NOW());
-
-INSERT INTO `classroom_members` (`id`, `classroom_id`, `user_id`, `joined_at`) VALUES
-(1, 1, 3, NOW()),
-(2, 1, 4, NOW());
 
 -- ------------------------------------------------------------------------------
 -- 3. KHỞI TẠO 10 BÀI TẬP LẬP TRÌNH & PHIÊN BẢN v1
