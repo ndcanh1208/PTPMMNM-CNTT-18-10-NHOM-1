@@ -1,7 +1,7 @@
 -- ==============================================================================
 -- BYTEFLOW ONLINE JUDGE - DỮ LIỆU KHỞI TẠO MẪU (seed.sql)
 -- Khởi tạo:
--- 1. 2 Tài khoản quản trị khởi tạo: admin1, instructor1 (Password: Password123@)
+-- 1. 2 Tài khoản quản trị khởi tạo: admin1, instructor1
 --    (Tài khoản sinh viên đăng ký chính thức qua trang register.php)
 -- 2. 1 Lớp học mẫu
 -- 3. 10 Bài tập lập trình chuẩn kèm phiên bản (v1) và bộ testcase (ít nhất 5 test/bài)
@@ -11,8 +11,7 @@ SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
 -- ------------------------------------------------------------------------------
--- 1. KHỞI TẠO TÀI KHOẢN QUẢN TRỊ & GIẢNG VIÊN (Mật khẩu chung: Password123@)
--- Hash Bcrypt: $2y$10$NwxgSH.Jx1/WncQ8f0ZelucdKhR/Sx6qo45ULnVhZtYc1UtmOac26
+-- 1. KHỞI TẠO TÀI KHOẢN QUẢN TRỊ & GIẢNG VIÊN (Bcrypt Hash)
 -- ------------------------------------------------------------------------------
 TRUNCATE TABLE `classroom_members`;
 TRUNCATE TABLE `classrooms`;
@@ -26,8 +25,8 @@ TRUNCATE TABLE `problems`;
 TRUNCATE TABLE `users`;
 
 INSERT INTO `users` (`id`, `username`, `email`, `password_hash`, `full_name`, `role`, `created_at`) VALUES
-(1, 'admin1', 'admin1@byteflow.local', '$2y$10$NwxgSH.Jx1/WncQ8f0ZelucdKhR/Sx6qo45ULnVhZtYc1UtmOac26', 'Quản trị viên Hệ thống', 'admin', NOW()),
-(2, 'instructor1', 'instructor1@byteflow.local', '$2y$10$NwxgSH.Jx1/WncQ8f0ZelucdKhR/Sx6qo45ULnVhZtYc1UtmOac26', 'TS. Nguyễn Văn Giảng', 'instructor', NOW());
+(1, 'admin1', 'admin1@byteflow.local', '$2y$10$YZZO4u2UDKKLjtMHd8yNFuKWMww/azLbnxeUQiU7Hu1tyfgtmmT46', 'Quản trị viên Hệ thống', 'admin', NOW()),
+(2, 'instructor1', 'instructor1@byteflow.local', '$2y$10$YZZO4u2UDKKLjtMHd8yNFuKWMww/azLbnxeUQiU7Hu1tyfgtmmT46', 'TS. Nguyễn Văn Giảng', 'instructor', NOW());
 
 -- ------------------------------------------------------------------------------
 -- 2. KHỞI TẠO LỚP HỌC MẪU
