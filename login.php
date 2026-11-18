@@ -29,6 +29,8 @@ $usernameVal = '';
 
 if (isset($_GET['registered'])) {
     $successMsg = 'Đăng ký tài khoản thành công! Vui lòng đăng nhập bằng tài khoản vừa tạo.';
+} elseif (isset($_GET['reset'])) {
+    $successMsg = 'Đặt lại mật khẩu thành công! Vui lòng đăng nhập bằng mật khẩu mới.';
 }
 if (isset($_GET['locked'])) {
     $error = 'Phiên làm việc đã kết thúc do tài khoản của bạn đang bị khóa. Vui lòng liên hệ Quản trị viên.';
@@ -107,7 +109,12 @@ require_once __DIR__ . '/includes/header.php';
       </div>
 
       <div>
-        <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Mật khẩu</label>
+        <div class="flex items-center justify-between mb-1.5">
+          <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider">Mật khẩu</label>
+          <a href="/BaiTapLon/forgot_password.php" class="text-[11px] text-cyan-400 hover:text-cyan-300 font-semibold hover:underline">
+            Quên mật khẩu?
+          </a>
+        </div>
         <div class="relative">
           <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500">
             <i class="fa-solid fa-lock text-sm"></i>

@@ -244,4 +244,24 @@ CREATE TABLE `case_results` (
   CONSTRAINT `fk_cr_testcase` FOREIGN KEY (`test_case_id`) REFERENCES `test_cases` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Chi tiết kết quả từng ca kiểm thử của lượt chấm';
 
+-- ------------------------------------------------------------------------------
+-- 11. BẢNG MÃ OTP ĐẶT LẠI MẬT KHẨU (password_reset_otps)
+-- Lưu mã OTP 6 chữ số đã băm (Bcrypt), hết hạn sau 10 phút, tối đa 5 lần nhập sai
+-- ------------------------------------------------------------------------------
+DROP TABLE IF EXISTS `password_reset_otps`;
+CREATE TABLE `password_reset_otps` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `user_id` INT NOT NULL,
+  `email` VARCHAR(100) NOT NULL,
+  `otp_hash` VARCHAR(255) NOT NULL COMMENT 'Mã OTP 6 chữ số được băm bằng Bcrypt',
+  `attempts` INT NOT NULL DEFAULT 0 COMMENT 'Số lần nhập sai OTP (tối đa 5 lần)',
+  `expires_at` DATETIME NOT NULL COMMENT 'Thời điểm hết hạn (10 phút)',
+  `used_at` DATETIME NULL DEFAULT NULL COMMENT 'Thời điểm đã sử dụng',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_otp_user` (`user_id`),
+  INDEX `idx_otp_email` (`email`),
+  INDEX `idx_otp_expires` (`expires_at`),
+  CONSTRAINT `fk_otp_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Bảng mã OTP đặt lại mật khẩu qua Email';
+
 SET FOREIGN_KEY_CHECKS = 1;

@@ -1,6 +1,8 @@
-# ByteFlow Online Judge .gitignore
+# Nhom1 Online Judge .gitignore
 temp/runs/*
 !temp/runs/.gitkeep
+temp/mail_logs/*
+config/mail.local.php
 *.log
 .DS_Store
 Thumbs.db
