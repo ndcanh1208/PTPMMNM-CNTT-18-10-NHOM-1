@@ -15,6 +15,7 @@ header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../core/Auth.php';
 require_once __DIR__ . '/../core/Security.php';
+require_once __DIR__ . '/../core/WorkerLauncher.php';
 
 // 1. Kiểm tra xác thực
 if (!Auth::check()) {
@@ -211,6 +212,9 @@ try {
     ]);
 
     $pdo->commit();
+
+    // Tự động kích hoạt Worker chấm bài chạy ngầm độc lập (không cần mở terminal tay)
+    WorkerLauncher::triggerAsync();
 
     http_response_code(201);
     echo json_encode([

@@ -14,6 +14,7 @@ header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../core/Auth.php';
 require_once __DIR__ . '/../core/Security.php';
+require_once __DIR__ . '/../core/WorkerLauncher.php';
 
 // 1. Kiểm tra xác thực & Phân quyền (Chỉ Giảng viên hoặc Admin)
 if (!Auth::check()) {
@@ -353,6 +354,10 @@ if ($action === 'save_testcases') {
 
             $pdo->commit();
 
+            if (!empty($queuedRuns)) {
+                WorkerLauncher::triggerAsync();
+            }
+
             echo json_encode([
                 'success'         => true,
                 'mode'            => 'new_version_rejudge',
@@ -563,6 +568,10 @@ if ($action === 'rejudge') {
         }
 
         $pdo->commit();
+
+        if (!empty($queuedRuns)) {
+            WorkerLauncher::triggerAsync();
+        }
 
         echo json_encode([
             'success'        => true,

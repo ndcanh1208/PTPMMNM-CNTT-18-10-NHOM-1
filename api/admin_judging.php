@@ -11,6 +11,7 @@ header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../core/Auth.php';
 require_once __DIR__ . '/../core/SandboxRunner.php';
+require_once __DIR__ . '/../core/WorkerLauncher.php';
 
 Auth::startSession();
 
@@ -200,6 +201,10 @@ try {
         }
         $pdo->commit();
 
+        if (!empty($runIds)) {
+            WorkerLauncher::triggerAsync();
+        }
+
         echo json_encode([
             'success'      => true,
             'queued_count' => count($runIds),
@@ -266,6 +271,10 @@ try {
         }
 
         $pdo->commit();
+
+        if ($retried > 0) {
+            WorkerLauncher::triggerAsync();
+        }
 
         echo json_encode([
             'success'       => true,

@@ -15,6 +15,7 @@ header('Content-Type: application/json; charset=utf-8');
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../core/Auth.php';
 require_once __DIR__ . '/../core/Security.php';
+require_once __DIR__ . '/../core/WorkerLauncher.php';
 
 // 1. Kiểm tra đăng nhập
 if (!Auth::check()) {
@@ -109,7 +110,11 @@ $runStmt->execute(['sub_id' => $submissionId]);
 $rawRuns = $runStmt->fetchAll();
 
 $runs = [];
+$hasQueuedRun = false;
 foreach ($rawRuns as $r) {
+    if ($r['status'] === 'Queued') {
+        $hasQueuedRun = true;
+    }
     $runId = (int)$r['id'];
 
     // 4.1 Lọc bỏ thông tin hạ tầng nội bộ nếu không phải Admin
@@ -133,6 +138,10 @@ foreach ($rawRuns as $r) {
 
     $cleanRun['case_results'] = $cleanCaseResults;
     $runs[] = $cleanRun;
+}
+
+if ($hasQueuedRun) {
+    WorkerLauncher::triggerAsync();
 }
 
 // 5. Trả về kết quả JSON

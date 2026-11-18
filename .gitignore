@@ -2,6 +2,7 @@
 temp/runs/*
 !temp/runs/.gitkeep
 temp/mail_logs/*
+temp/worker.lock
 config/mail.local.php
 *.log
 .DS_Store

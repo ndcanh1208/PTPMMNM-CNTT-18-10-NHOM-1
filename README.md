@@ -70,7 +70,8 @@ BaiTapLon/
 │   ├── Mailer.php                      # Dịch vụ gửi Email SMTP thuần PHP (TLS/SSL & Local Log)
 │   ├── SandboxRunner.php               # Thực thi cách ly Python & G++ MinGW (cờ -static)
 │   ├── Security.php                    # Bộ lọc bảo mật, XSS, CSRF, ẩn dữ liệu testcase kín
-│   └── worker.php                      # Tiến trình Worker điều phối chấm bài nền độc lập
+│   ├── WorkerLauncher.php              # Tự động kích hoạt Worker chạy ngầm khi có bài nộp/Rejudge
+│   └── worker.php                      # Tiến trình Worker điều phối chấm bài nền độc lập (--drain / daemon)
 ├── database/
 │   ├── schema.sql                      # 11 bảng CSDL chuẩn hóa InnoDB utf8mb4
 │   ├── seed.sql                        # Dữ liệu khởi tạo ban đầu (10 bài tập, 51 testcases, admin & GV)
@@ -167,12 +168,10 @@ C:\xampp\php\php.exe database/seed.php
   define('MAIL_FROM_NAME', 'Nhom1 Online Judge');
   ```
 
-### Bước 5: Khởi chạy Worker Chấm bài Nền
-Mở một cửa sổ Terminal/PowerShell riêng biệt để chạy Worker:
-```powershell
-C:\xampp\php\php.exe core/worker.php
-```
-*Worker sẽ liên tục lắng nghe hàng đợi `Queued`, khóa bản ghi an toàn (`Atomic Lock`), chấm bài trong môi trường Sandbox cách ly và cập nhật kết quả tự động.*
+### Bước 5: Worker Chấm bài Nền (Tự động kích hoạt — Không cần mở terminal)
+Hệ thống đã tích hợp **`core/WorkerLauncher.php`**: ngay khi sinh viên bấm **Nộp bài** hoặc Admin bấm **Rejudge**, tiến trình `core/worker.php --drain` sẽ **tự động được kích hoạt chạy ngầm tách biệt khỏi Apache**, chấm sạch toàn bộ hàng đợi rồi tự thoát an toàn.
+
+*(Tùy chọn: Nếu muốn xem nhật ký chấm trực tiếp theo thời gian thực trên màn hình dòng lệnh, bạn vẫn có thể tự mở terminal chạy `C:\xampp\php\php.exe core/worker.php`.)*
 
 ### Bước 6: Truy cập Giao diện Web
 Mở trình duyệt web và truy cập:

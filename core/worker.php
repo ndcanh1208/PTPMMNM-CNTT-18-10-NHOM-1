@@ -16,6 +16,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/SandboxRunner.php';
 require_once __DIR__ . '/Comparator.php';
 require_once __DIR__ . '/Security.php';
+require_once __DIR__ . '/WorkerLauncher.php';
 
 class JudgingWorker
 {
@@ -23,41 +24,108 @@ class JudgingWorker
     private SandboxRunner $sandbox;
     private string $workerId;
     private bool $runOnce = false;
+    private bool $drainMode = false;
     private int $sleepSeconds = 1;
+    /** @var resource|null */
+    private $lockHandle = null;
 
-    public function __construct(bool $runOnce = false, int $sleepSeconds = 1)
+    public function __construct(bool $runOnce = false, int $sleepSeconds = 1, bool $drainMode = false)
     {
         $this->pdo = getDbConnection();
         $this->sandbox = new SandboxRunner();
         $this->workerId = sprintf('worker_%d_%s', getmypid(), bin2hex(random_bytes(4)));
         $this->runOnce = $runOnce;
+        $this->drainMode = $drainMode;
         $this->sleepSeconds = max(1, $sleepSeconds);
+    }
+
+    /**
+     * Giữ khóa độc quyền để báo hiệu Worker đang hoạt động và chống sinh trùng tiến trình
+     */
+    private function acquireWorkerLock(): bool
+    {
+        $lockPath = WorkerLauncher::getLockFilePath();
+        $fp = @fopen($lockPath, 'c+');
+        if (!$fp) {
+            return true;
+        }
+        if (!flock($fp, LOCK_EX | LOCK_NB)) {
+            fclose($fp);
+            return false;
+        }
+        ftruncate($fp, 0);
+        fwrite($fp, $this->workerId . ' | ' . date('Y-m-d H:i:s') . "\n");
+        fflush($fp);
+        $this->lockHandle = $fp;
+        return true;
+    }
+
+    private function releaseWorkerLock(): void
+    {
+        if (is_resource($this->lockHandle)) {
+            @flock($this->lockHandle, LOCK_UN);
+            @fclose($this->lockHandle);
+            $this->lockHandle = null;
+        }
     }
 
     public function start(): void
     {
-        echo "====================================================================\n";
-        echo "   NHOM1 ONLINE JUDGE - WORKER CHẤM BÀI NỀN ĐỘC LẬP                 \n";
-        echo "====================================================================\n";
-        echo "Worker ID   : {$this->workerId}\n";
-        echo "Môi trường  : CLI độc lập (PHP " . PHP_VERSION . ")\n";
-        echo "Trình biên dịch Python: " . ($this->sandbox->getPythonPath() ?: '[Chưa tìm thấy]') . "\n";
-        echo "Trình biên dịch G++   : " . ($this->sandbox->getGppPath() ?: '[Chưa tìm thấy]') . "\n";
-        echo "Chế độ chạy : " . ($this->runOnce ? 'Chạy một lượt (--once)' : "Lắng nghe liên tục (Chu kỳ {$this->sleepSeconds}s)") . "\n";
-        echo "====================================================================\n";
-        echo "Đang sẵn sàng nhận việc từ hàng đợi...\n\n";
+        if (!$this->runOnce) {
+            if (!$this->acquireWorkerLock()) {
+                if (!$this->drainMode) {
+                    echo "[Worker] Đã có một tiến trình Worker khác đang chạy. Hủy khởi chạy trùng.\n";
+                }
+                return;
+            }
+        }
 
-        do {
-            $processed = $this->processNextQueuedRun();
+        try {
+            $modeLabel = $this->runOnce
+                ? 'Chạy một lượt (--once)'
+                : ($this->drainMode ? 'Tự động chấm sạch hàng đợi rồi thoát (--drain)' : "Lắng nghe liên tục (Chu kỳ {$this->sleepSeconds}s)");
 
-            if (!$processed) {
+            echo "====================================================================\n";
+            echo "   NHOM1 ONLINE JUDGE - WORKER CHẤM BÀI NỀN ĐỘC LẬP                 \n";
+            echo "====================================================================\n";
+            echo "Worker ID   : {$this->workerId}\n";
+            echo "Môi trường  : CLI độc lập (PHP " . PHP_VERSION . ")\n";
+            echo "Trình biên dịch Python: " . ($this->sandbox->getPythonPath() ?: '[Chưa tìm thấy]') . "\n";
+            echo "Trình biên dịch G++   : " . ($this->sandbox->getGppPath() ?: '[Chưa tìm thấy]') . "\n";
+            echo "Chế độ chạy : {$modeLabel}\n";
+            echo "====================================================================\n";
+            echo "Đang sẵn sàng nhận việc từ hàng đợi...\n\n";
+
+            $emptyChecks = 0;
+            do {
+                $processed = $this->processNextQueuedRun();
+
+                if ($processed) {
+                    $emptyChecks = 0;
+                    continue;
+                }
+
                 if ($this->runOnce) {
                     echo "[Worker] Hàng đợi rỗng. Kết thúc lượt chạy đơn lẻ (--once).\n";
                     break;
                 }
+
+                if ($this->drainMode) {
+                    $emptyChecks++;
+                    // Kiểm tra lại thêm 1 nhịp sau 1 giây phòng bài nộp mới vừa vào
+                    if ($emptyChecks >= 2) {
+                        echo "[Worker] Đã chấm sạch hàng đợi. Tự động dừng (--drain).\n";
+                        break;
+                    }
+                    sleep(1);
+                    continue;
+                }
+
                 sleep($this->sleepSeconds);
-            }
-        } while (!$this->runOnce);
+            } while (!$this->runOnce);
+        } finally {
+            $this->releaseWorkerLock();
+        }
     }
 
     /**
@@ -462,10 +530,11 @@ class JudgingWorker
 
 // Nếu chạy trực tiếp từ CLI
 if (php_sapi_name() === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIPT_FILENAME'] ?? '')) {
-    $options = getopt('', ['once', 'sleep::']);
+    $options = getopt('', ['once', 'drain', 'sleep::']);
     $runOnce = isset($options['once']);
+    $drainMode = isset($options['drain']);
     $sleepSeconds = isset($options['sleep']) ? (int)$options['sleep'] : 1;
 
-    $worker = new JudgingWorker($runOnce, $sleepSeconds);
+    $worker = new JudgingWorker($runOnce, $sleepSeconds, $drainMode);
     $worker->start();
 }
