@@ -1,6 +1,6 @@
 <?php
 /**
- * ByteFlow Online Judge - Module Xác thực & Phân quyền Chính thức (Auth)
+ * Nhom1 Online Judge - Module Xác thực & Phân quyền Chính thức (Auth)
  * - Hỗ trợ Đăng nhập chính thức (Username / Email / Mã sinh viên)
  * - Hỗ trợ Đăng ký tài khoản Sinh viên (Role mặc định 'learner')
  * - Kiểm tra tức thì trạng thái khóa tài khoản (is_locked) & thay đổi vai trò

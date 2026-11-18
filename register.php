@@ -1,6 +1,6 @@
 <?php
 /**
- * ByteFlow Online Judge - Trang Đăng ký Tài khoản Chính thức
+ * Nhom1 Online Judge - Trang Đăng ký Tài khoản Chính thức
  */
 
 declare(strict_types=1);
@@ -64,7 +64,7 @@ require_once __DIR__ . '/includes/header.php';
       <div class="inline-flex w-14 h-14 rounded-2xl bg-gradient-to-tr from-cyan-400 to-blue-600 items-center justify-center text-black font-black text-2xl shadow-[0_0_20px_rgba(0,255,255,0.4)] mb-3">
         <i class="fa-solid fa-user-plus text-[#050507]"></i>
       </div>
-      <h1 class="text-2xl font-black tracking-wide text-white">Đăng ký Byte<span class="text-cyan-400">Flow</span></h1>
+      <h1 class="text-2xl font-black tracking-wide text-white">Đăng ký Nhom<span class="text-cyan-400">1</span></h1>
       <p class="text-xs text-slate-400 mt-1">Tạo tài khoản sinh viên chính thức để tham gia luyện tập & kiểm tra</p>
     </div>
 

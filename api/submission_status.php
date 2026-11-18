@@ -1,6 +1,6 @@
 <?php
 /**
- * ByteFlow Online Judge - API Theo dõi Trạng thái Chấm & Chi tiết Bài nộp
+ * Nhom1 Online Judge - API Theo dõi Trạng thái Chấm & Chi tiết Bài nộp
  * GET /api/submission_status.php?id={submission_id}
  * 
  * Tuân thủ:

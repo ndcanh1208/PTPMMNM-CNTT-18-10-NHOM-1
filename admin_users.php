@@ -1,6 +1,6 @@
 <?php
 /**
- * ByteFlow Online Judge - Phân hệ Admin: Quản lý Người dùng & Tài khoản
+ * Nhom1 Online Judge - Phân hệ Admin: Quản lý Người dùng & Tài khoản
  * - Quản lý danh sách sinh viên, mã sinh viên, lớp và mức độ tham gia luyện tập
  * - Cấp quyền hoặc thu hồi quyền Admin / Giảng viên
  * - Khóa / mở khóa tài khoản vi phạm quy chế hoặc gian lận

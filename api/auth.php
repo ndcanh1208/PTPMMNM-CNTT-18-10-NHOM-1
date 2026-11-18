@@ -1,6 +1,6 @@
 <?php
 /**
- * ByteFlow Online Judge - API Xác thực Chính thức (Đăng nhập, Đăng ký, Đăng xuất & Kiểm tra Phiên)
+ * Nhom1 Online Judge - API Xác thực Chính thức (Đăng nhập, Đăng ký, Đăng xuất & Kiểm tra Phiên)
  * POST /api/auth.php
  */
 

@@ -1,6 +1,6 @@
 <?php
 /**
- * ByteFlow Online Judge - Phân hệ Admin: Quản lý Chấm bài & Vận hành Hệ thống
+ * Nhom1 Online Judge - Phân hệ Admin: Quản lý Chấm bài & Vận hành Hệ thống
  * - Giám sát hàng đợi chấm bài cô lập (Sandbox Queues) cho Python & C++
  * - Kích hoạt Rejudge cho toàn bộ bài tập hoặc sinh viên cụ thể
  * - Giám sát & xử lý lỗi hệ thống (SE, CE, tràn/treo hàng đợi)

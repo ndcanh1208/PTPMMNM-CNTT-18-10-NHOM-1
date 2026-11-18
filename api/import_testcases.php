@@ -1,6 +1,6 @@
 <?php
 /**
- * ByteFlow Online Judge - API Nhập & Thẩm định Bộ Test Case từ File (ZIP / JSON)
+ * Nhom1 Online Judge - API Nhập & Thẩm định Bộ Test Case từ File (ZIP / JSON)
  * POST /api/import_testcases.php
  * 
  * Hỗ trợ 3 Cấp độ Thẩm định chuẩn mực:

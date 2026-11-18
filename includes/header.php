@@ -1,6 +1,6 @@
 <?php
 /**
- * ByteFlow Online Judge - Phần đầu trang chung (Header)
+ * Nhom1 Online Judge - Phần đầu trang chung (Header)
  */
 
 declare(strict_types=1);
@@ -16,7 +16,7 @@ $currentUser = Auth::user();
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title><?= isset($pageTitle) ? Security::escape($pageTitle) . ' | ByteFlow Judge' : 'ByteFlow - Hệ thống Chấm bài Lập trình Trực tuyến' ?></title>
+  <title><?= isset($pageTitle) ? Security::escape($pageTitle) . ' | Nhom1' : 'Nhom1 - Hệ thống Chấm bài Lập trình Trực tuyến' ?></title>
   
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>

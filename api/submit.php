@@ -1,6 +1,6 @@
 <?php
 /**
- * ByteFlow Online Judge - API Nộp bài chính thức & Xử lý Idempotency
+ * Nhom1 Online Judge - API Nộp bài chính thức & Xử lý Idempotency
  * POST /api/submit.php
  * 
  * Tuân thủ:

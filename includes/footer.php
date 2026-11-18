@@ -1,13 +1,13 @@
 <?php
 /**
- * ByteFlow Online Judge - Phần chân trang chung (Footer)
+ * Nhom1 Online Judge - Phần chân trang chung (Footer)
  * Nằm bên trong wrapper pl-64 để căn chỉnh hoàn hảo với Left Sidebar
  */
 ?>
   <footer class="mt-auto py-6 border-t border-white/5 text-center text-xs text-slate-500 shrink-0">
     <div class="flex flex-col sm:flex-row items-center justify-between px-8 max-w-7xl mx-auto space-y-2 sm:space-y-0">
       <div>
-        ByteFlow Online Judge &copy; <?= date('Y') ?> - Hệ thống Luyện tập & Chấm bài Trực tuyến
+        Nhom1 Online Judge &copy; <?= date('Y') ?> - Hệ thống Luyện tập & Chấm bài Trực tuyến
       </div>
       <div class="flex items-center space-x-4 text-slate-400">
         <span>Đề tài 20: Phát triển phần mềm mã nguồn mở</span>

@@ -1,6 +1,6 @@
 <?php
 /**
- * ByteFlow Online Judge - Tiến trình Worker Điều phối Chấm bài Độc lập
+ * Nhom1 Online Judge - Tiến trình Worker Điều phối Chấm bài Độc lập
  * Chạy nền qua CLI: php core/worker.php [--once] [--sleep=1]
  * 
  * Tuân thủ tuyệt đối:
@@ -37,7 +37,7 @@ class JudgingWorker
     public function start(): void
     {
         echo "====================================================================\n";
-        echo "   BYTEFLOW ONLINE JUDGE - WORKER CHẤM BÀI NỀN ĐỘC LẬP              \n";
+        echo "   NHOM1 ONLINE JUDGE - WORKER CHẤM BÀI NỀN ĐỘC LẬP                 \n";
         echo "====================================================================\n";
         echo "Worker ID   : {$this->workerId}\n";
         echo "Môi trường  : CLI độc lập (PHP " . PHP_VERSION . ")\n";

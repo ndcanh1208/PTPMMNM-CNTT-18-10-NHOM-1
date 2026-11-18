@@ -1,6 +1,6 @@
 <?php
 /**
- * ByteFlow Online Judge - Thư viện Bài tập (Problems Library)
+ * Nhom1 Online Judge - Thư viện Bài tập (Problems Library)
  * Bộ lọc theo Chủ đề, Độ khó, Phiên bản và Trạng thái giải
  */
 

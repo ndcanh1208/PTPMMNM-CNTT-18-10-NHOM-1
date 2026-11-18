@@ -1,6 +1,6 @@
 <?php
 /**
- * ByteFlow Online Judge - Không gian Làm bài & Chấm Trực tuyến (IDE & Solve Workspace)
+ * Nhom1 Online Judge - Không gian Làm bài & Chấm Trực tuyến (IDE & Solve Workspace)
  * Tình huống sử dụng 1: Chọn bài -> Viết mã -> Chạy thử -> Nộp bài -> Theo dõi chấm -> Xem kết quả
  */
 
@@ -444,7 +444,7 @@ require_once __DIR__ . '/includes/sidebar.php';
   <!-- Status Bar IDE Chuyên nghiệp dưới đáy Workspace -->
   <div class="h-7 px-4 border-t border-white/10 bg-[#07090E] flex items-center justify-between text-[11px] text-slate-500 shrink-0">
     <div class="flex items-center space-x-4">
-      <span class="flex items-center space-x-1.5"><i class="fa-solid fa-code-branch text-cyan-400"></i><span class="text-slate-400">ByteFlow IDE</span></span>
+      <span class="flex items-center space-x-1.5"><i class="fa-solid fa-code-branch text-cyan-400"></i><span class="text-slate-400">Nhom1 IDE</span></span>
       <span>UTF-8</span>
       <span>Spaces: 4</span>
       <span class="text-slate-400 font-mono"><i class="fa-solid fa-keyboard text-[10px] mr-1"></i>Ctrl+Enter: Nộp bài</span>
@@ -452,7 +452,7 @@ require_once __DIR__ . '/includes/sidebar.php';
     <div class="flex items-center space-x-3 text-slate-400">
       <span>Đề tài 20: Phát triển phần mềm mã nguồn mở</span>
       <span class="text-white/20">|</span>
-      <span class="text-cyan-400 font-mono">ByteFlow v2.0</span>
+      <span class="text-cyan-400 font-mono">Nhom1 v2.0</span>
     </div>
   </div>
 

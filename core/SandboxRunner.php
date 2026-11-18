@@ -1,6 +1,6 @@
 <?php
 /**
- * ByteFlow Online Judge - Dịch vụ Thực thi Cách ly (SandboxRunner)
+ * Nhom1 Online Judge - Dịch vụ Thực thi Cách ly (SandboxRunner)
  * Thực thi mã nguồn Python và C++ trong thư mục tạm cách ly,
  * kiểm soát thời gian chạy (Time Limit), bộ nhớ và bắt chính xác mã lỗi:
  * - CE (Compile Error): Lỗi cú pháp / biên dịch

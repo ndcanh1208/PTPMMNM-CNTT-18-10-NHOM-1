@@ -1,6 +1,6 @@
 <?php
 /**
- * ByteFlow Online Judge - Bộ So sánh Đầu ra (Comparator)
+ * Nhom1 Online Judge - Bộ So sánh Đầu ra (Comparator)
  * Chuẩn hóa ký tự xuống dòng (\r\n, \r, \n) và khoảng trắng cuối dòng
  * Tuân thủ tiêu chuẩn so sánh của các hệ thống Online Judge chuẩn quốc tế
  */

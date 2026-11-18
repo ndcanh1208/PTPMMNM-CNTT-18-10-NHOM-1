@@ -1,6 +1,6 @@
 <?php
 /**
- * ByteFlow Online Judge - Tra cứu Lịch sử Nộp bài & Tiến độ
+ * Nhom1 Online Judge - Tra cứu Lịch sử Nộp bài & Tiến độ
  * Lọc theo Bài tập, Ngôn ngữ, Kết quả, Lớp học và Modal xem chi tiết từng lần chấm
  */
 

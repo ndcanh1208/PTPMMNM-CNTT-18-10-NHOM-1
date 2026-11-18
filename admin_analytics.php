@@ -1,6 +1,6 @@
 <?php
 /**
- * ByteFlow Online Judge - Phân hệ Admin: Thống kê & Báo cáo Kết quả Học tập
+ * Nhom1 Online Judge - Phân hệ Admin: Thống kê & Báo cáo Kết quả Học tập
  * - Thống kê tổng quan: Bài tập, Bài nộp, Tỷ lệ AC vs WA vs TLE vs RE vs CE vs SE
  * - So sánh hiệu suất Python vs C++, phân tích theo từng bài tập
  * - Báo cáo điểm số sinh viên & Xuất dữ liệu CSV (Excel) / JSON

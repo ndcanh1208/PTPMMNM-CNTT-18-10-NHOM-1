@@ -1,6 +1,6 @@
 <?php
 /**
- * ByteFlow Online Judge - Trang Chủ & Bảng điều khiển Tổng quan (Dashboard)
+ * Nhom1 Online Judge - Trang Chủ & Bảng điều khiển Tổng quan (Dashboard)
  */
 
 declare(strict_types=1);
@@ -75,7 +75,7 @@ require_once __DIR__ . '/includes/sidebar.php';
           <span>Hệ thống Chấm bài Trực tuyến Thế hệ Mới</span>
         </div>
         <h1 class="text-3xl font-black tracking-tight text-white sm:text-4xl">
-          Chào mừng đến với <span class="text-cyan-400">ByteFlow</span> Judge
+          Chào mừng đến với <span class="text-cyan-400">Nhom1</span> Online Judge
         </h1>
         <p class="text-slate-300 text-sm leading-relaxed">
           Nền tảng luyện tập lập trình trực tuyến bảo mật, tách biệt tiến trình thực thi cách ly, hỗ trợ quản lý đa phiên bản bộ test và chấm lại tự động đối chiếu song song.

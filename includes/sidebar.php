@@ -1,6 +1,6 @@
 <?php
 /**
- * ByteFlow Online Judge - Left Sidebar Điều hướng Cố định
+ * Nhom1 Online Judge - Left Sidebar Điều hướng Cố định
  * Phong cách Dark Glassmorphism, Neon Cyan Accent, Micro-interaction
  */
 
@@ -31,7 +31,7 @@ $isWorkerActive = true;
           <i class="fa-solid fa-code text-[#050507]"></i>
         </div>
         <div>
-          <span class="text-xl font-black tracking-wider text-white">Byte<span class="text-cyan-400">Flow</span></span>
+          <span class="text-xl font-black tracking-wider text-white">Nhom<span class="text-cyan-400">1</span></span>
           <span class="block text-[10px] uppercase tracking-widest text-slate-400 font-semibold">Online Judge</span>
         </div>
       </a>

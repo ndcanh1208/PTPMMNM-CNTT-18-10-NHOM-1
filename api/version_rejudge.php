@@ -1,6 +1,6 @@
 <?php
 /**
- * ByteFlow Online Judge - API Tạo phiên bản bộ dữ liệu mới & Chấm lại (Rejudge)
+ * Nhom1 Online Judge - API Tạo phiên bản bộ dữ liệu mới & Chấm lại (Rejudge)
  * POST /api/version_rejudge.php
  * 
  * Hỗ trợ Tình huống sử dụng 2:

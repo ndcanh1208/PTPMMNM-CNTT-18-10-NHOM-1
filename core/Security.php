@@ -1,6 +1,6 @@
 <?php
 /**
- * ByteFlow Online Judge - Module Bảo mật & Lọc Dữ liệu Nhạy cảm
+ * Nhom1 Online Judge - Module Bảo mật & Lọc Dữ liệu Nhạy cảm
  * Tuân thủ Nguyên tắc 4 (MASTER_PLAN.md) và Phép thử 5 (Rubric)
  */
 

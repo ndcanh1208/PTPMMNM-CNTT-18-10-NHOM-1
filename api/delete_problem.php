@@ -1,6 +1,6 @@
 <?php
 /**
- * ByteFlow Online Judge - API Xóa & Khôi phục Bài tập Thông minh
+ * Nhom1 Online Judge - API Xóa & Khôi phục Bài tập Thông minh
  * POST /api/delete_problem.php
  * 
  * Hỗ trợ 3 chế độ an toàn chuẩn Online Judge:

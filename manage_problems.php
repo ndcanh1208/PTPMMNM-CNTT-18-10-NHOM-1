@@ -1,6 +1,6 @@
 <?php
 /**
- * ByteFlow Online Judge - Quản lý Bài tập & Bộ dữ liệu kiểm tra
+ * Nhom1 Online Judge - Quản lý Bài tập & Bộ dữ liệu kiểm tra
  * Dành riêng cho Giảng viên (Instructor) và Quản trị viên (Admin)
  * Phong cách Dark Glassmorphism, Neon Cyan Accent
  */
@@ -41,7 +41,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $inputDesc = trim((string)($_POST['input_description'] ?? ''));
         $outputDesc = trim((string)($_POST['output_description'] ?? ''));
         $constraints = trim((string)($_POST['constraints'] ?? ''));
-        $sourceAttribution = trim((string)($_POST['source_attribution'] ?? 'ByteFlow Internal'));
+        $sourceAttribution = trim((string)($_POST['source_attribution'] ?? 'Nhom1 Internal'));
 
         if ($slug === '' || $title === '') {
             $msgError = 'Vui lòng nhập đầy đủ mã định danh (slug) và tiêu đề bài tập.';
@@ -294,7 +294,7 @@ $stmt = $pdo->prepare($query);
 $stmt->execute($params);
 $problems = $stmt->fetchAll();
 
-$pageTitle = "Quản lý Đề & Bộ Test - ByteFlow Online Judge";
+$pageTitle = "Quản lý Đề & Bộ Test";
 require_once __DIR__ . '/includes/header.php';
 require_once __DIR__ . '/includes/sidebar.php';
 ?>

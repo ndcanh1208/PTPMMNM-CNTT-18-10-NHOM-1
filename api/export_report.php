@@ -1,6 +1,6 @@
 <?php
 /**
- * ByteFlow Online Judge - API Xuất Báo cáo Kết quả Học tập & Lịch sử Nộp bài (Admin Only)
+ * Nhom1 Online Judge - API Xuất Báo cáo Kết quả Học tập & Lịch sử Nộp bài (Admin Only)
  * GET /api/export_report.php?type=student_summary|submissions&format=csv|json
  */
 
@@ -132,7 +132,7 @@ if ($type === 'student_summary') {
 
     if ($format === 'json') {
         header('Content-Type: application/json; charset=utf-8');
-        header("Content-Disposition: attachment; filename=\"byteflow_bang_diem_{$timestamp}.json\"");
+        header("Content-Disposition: attachment; filename=\"nhom1_bang_diem_{$timestamp}.json\"");
         echo json_encode([
             'exported_at'    => date('Y-m-d H:i:s'),
             'report_type'    => 'student_summary',
@@ -144,7 +144,7 @@ if ($type === 'student_summary') {
     }
 
     header('Content-Type: text/csv; charset=utf-8');
-    header("Content-Disposition: attachment; filename=\"byteflow_bang_diem_{$timestamp}.csv\"");
+    header("Content-Disposition: attachment; filename=\"nhom1_bang_diem_{$timestamp}.csv\"");
     // UTF-8 BOM để Microsoft Excel mở hiển thị đúng tiếng Việt
     echo "\xEF\xBB\xBF";
     $out = fopen('php://output', 'w');
@@ -213,7 +213,7 @@ $subs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 if ($format === 'json') {
     header('Content-Type: application/json; charset=utf-8');
-    header("Content-Disposition: attachment; filename=\"byteflow_lich_su_nop_{$timestamp}.json\"");
+    header("Content-Disposition: attachment; filename=\"nhom1_lich_su_nop_{$timestamp}.json\"");
     echo json_encode([
         'exported_at'       => date('Y-m-d H:i:s'),
         'report_type'       => 'submissions',
@@ -224,7 +224,7 @@ if ($format === 'json') {
 }
 
 header('Content-Type: text/csv; charset=utf-8');
-header("Content-Disposition: attachment; filename=\"byteflow_lich_su_nop_{$timestamp}.csv\"");
+header("Content-Disposition: attachment; filename=\"nhom1_lich_su_nop_{$timestamp}.csv\"");
 echo "\xEF\xBB\xBF";
 $out = fopen('php://output', 'w');
 fputcsv($out, [

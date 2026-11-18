@@ -1,6 +1,6 @@
 <?php
 /**
- * ByteFlow Online Judge - API Quản lý Chấm bài, Giám sát Hàng đợi & Điều khiển Rejudge (Admin Only)
+ * Nhom1 Online Judge - API Quản lý Chấm bài, Giám sát Hàng đợi & Điều khiển Rejudge (Admin Only)
  * GET/POST /api/admin_judging.php
  */
 

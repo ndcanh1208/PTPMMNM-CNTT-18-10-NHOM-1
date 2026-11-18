@@ -1,6 +1,6 @@
 <?php
 /**
- * ByteFlow Online Judge - API Chạy thử (Custom Input) & Lưu bản nháp (Draft)
+ * Nhom1 Online Judge - API Chạy thử (Custom Input) & Lưu bản nháp (Draft)
  * POST /api/run_test.php
  */
 

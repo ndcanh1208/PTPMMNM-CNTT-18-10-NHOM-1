@@ -1,6 +1,6 @@
 <?php
 /**
- * ByteFlow Online Judge - API Quản lý Người dùng, Phân quyền & Khóa Tài khoản (Admin Only)
+ * Nhom1 Online Judge - API Quản lý Người dùng, Phân quyền & Khóa Tài khoản (Admin Only)
  * POST /api/admin_users.php
  */
 

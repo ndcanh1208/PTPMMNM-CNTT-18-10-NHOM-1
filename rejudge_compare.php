@@ -1,6 +1,6 @@
 <?php
 /**
- * ByteFlow Online Judge - Phân hệ Giảng viên: Chấm lại & Đối chiếu Song song (Rejudge & Compare)
+ * Nhom1 Online Judge - Phân hệ Giảng viên: Chấm lại & Đối chiếu Song song (Rejudge & Compare)
  * Hiện thực hóa trọn vẹn TÌNH HUỐNG SỬ DỤNG 2 theo Rubric:
  * "Sửa bộ dữ liệu -> tạo phiên bản mới -> chấm lại -> đối chiếu hai lần chấm mà vẫn giữ lịch sử"
  */
