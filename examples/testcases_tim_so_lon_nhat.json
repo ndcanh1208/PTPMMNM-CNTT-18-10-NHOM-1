@@ -1,0 +1,32 @@
+[
+  {
+    "input": "5\n3 7 2 9 4\n",
+    "output": "9\n",
+    "is_sample": 1,
+    "points": 10
+  },
+  {
+    "input": "4\n-10 -3 -50 -1\n",
+    "output": "-1\n",
+    "is_sample": 1,
+    "points": 10
+  },
+  {
+    "input": "1\n42\n",
+    "output": "42\n",
+    "is_sample": 0,
+    "points": 20
+  },
+  {
+    "input": "6\n1000000000 500 1000000000 -999 0 999999999\n",
+    "output": "1000000000\n",
+    "is_sample": 0,
+    "points": 30
+  },
+  {
+    "input": "5\n99 88 77 66 55\n",
+    "output": "99\n",
+    "is_sample": 0,
+    "points": 30
+  }
+]

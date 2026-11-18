@@ -1,6 +1,6 @@
 <?php
 /**
- * ByteFlow Online Judge - Trang Đăng nhập & Chuyển đổi Tài khoản Nhanh
+ * ByteFlow Online Judge - Trang Đăng nhập Chính thức
  */
 
 declare(strict_types=1);
@@ -24,27 +24,39 @@ if (Auth::check()) {
 }
 
 $error = null;
+$successMsg = null;
 $usernameVal = '';
 
+if (isset($_GET['registered'])) {
+    $successMsg = 'Đăng ký tài khoản thành công! Vui lòng đăng nhập bằng tài khoản vừa tạo.';
+}
+if (isset($_GET['locked'])) {
+    $error = 'Phiên làm việc đã kết thúc do tài khoản của bạn đang bị khóa. Vui lòng liên hệ Quản trị viên.';
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $identifier = trim((string)($_POST['identifier'] ?? ''));
+    $identifier = trim((string)($_POST['identifier'] ?? $_POST['username'] ?? ''));
     $password   = (string)($_POST['password'] ?? '');
     $usernameVal = $identifier;
 
     if ($identifier === '' || $password === '') {
-        $error = 'Vui lòng nhập đầy đủ Tên đăng nhập và Mật khẩu.';
+        $error = 'Vui lòng nhập đầy đủ Tên đăng nhập / Email / Mã sinh viên và Mật khẩu.';
     } else {
         if (Auth::attempt($identifier, $password)) {
             $redirect = $_GET['redirect'] ?? '/BaiTapLon/index.php';
+            // Ngăn chặn Open Redirect: chỉ cho phép đường dẫn nội bộ
+            if (!str_starts_with((string)$redirect, '/')) {
+                $redirect = '/BaiTapLon/index.php';
+            }
             header("Location: {$redirect}");
             exit;
         } else {
-            $error = 'Tên đăng nhập hoặc mật khẩu không chính xác.';
+            $error = Auth::getLastError() ?? 'Tên đăng nhập hoặc mật khẩu không chính xác.';
         }
     }
 }
 
-$pageTitle = 'Đăng nhập';
+$pageTitle = 'Đăng nhập hệ thống';
 require_once __DIR__ . '/includes/header.php';
 ?>
 
@@ -63,24 +75,33 @@ require_once __DIR__ . '/includes/header.php';
       <p class="text-xs text-slate-400 mt-1">Hệ thống luyện tập & chấm bài lập trình trực tuyến</p>
     </div>
 
+    <?php if ($successMsg): ?>
+      <div class="mb-5 p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-start space-x-2">
+        <i class="fa-solid fa-circle-check mt-0.5 shrink-0"></i>
+        <span><?= Security::escape($successMsg) ?></span>
+      </div>
+    <?php endif; ?>
+
     <?php if ($error): ?>
-      <div class="mb-5 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center space-x-2">
-        <i class="fa-solid fa-triangle-exclamation"></i>
+      <div class="mb-5 p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start space-x-2">
+        <i class="fa-solid fa-triangle-exclamation mt-0.5 shrink-0"></i>
         <span><?= Security::escape($error) ?></span>
       </div>
     <?php endif; ?>
 
-    <!-- Form Đăng nhập -->
+    <!-- Form Đăng nhập Chính thức -->
     <form action="" method="POST" class="space-y-4">
       <div>
-        <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">Tên đăng nhập / Email</label>
+        <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+          Tên đăng nhập / Email / Mã sinh viên
+        </label>
         <div class="relative">
           <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500">
             <i class="fa-solid fa-user text-sm"></i>
           </span>
-          <input type="text" name="identifier" id="login-identifier" required
+          <input type="text" name="identifier" id="login-identifier" required autocomplete="username"
             value="<?= Security::escape($usernameVal) ?>"
-            placeholder="vd: learner1, instructor1, admin1"
+            placeholder="Nhập tên đăng nhập, email hoặc MSSV..."
             class="w-full glass-input rounded-xl py-2.5 pl-10 pr-4 text-sm placeholder-slate-500">
         </div>
       </div>
@@ -91,59 +112,32 @@ require_once __DIR__ . '/includes/header.php';
           <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500">
             <i class="fa-solid fa-lock text-sm"></i>
           </span>
-          <input type="password" name="password" id="login-password" required
+          <input type="password" name="password" id="login-password" required autocomplete="current-password"
             placeholder="••••••••••••"
             class="w-full glass-input rounded-xl py-2.5 pl-10 pr-4 text-sm placeholder-slate-500">
         </div>
       </div>
 
-      <button type="submit" class="w-full btn-cyan py-3 text-sm mt-2 flex items-center justify-center space-x-2 font-semibold">
+      <button type="submit" class="w-full btn-cyan py-3 text-sm mt-2 flex items-center justify-center space-x-2 font-bold cursor-pointer">
         <span>Đăng nhập</span>
         <i class="fa-solid fa-arrow-right text-xs"></i>
       </button>
     </form>
 
-    <!-- Nút Đăng nhập Nhanh Mẫu (Cho Giảng viên & Hội đồng chấm thi) -->
-    <div class="mt-8 pt-6 border-t border-white/10">
-      <div class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider text-center mb-3">
-        Tài khoản mẫu thử nghiệm (Mật khẩu: Password123@)
-      </div>
-      <div class="grid grid-cols-2 gap-2 text-xs">
-        <button type="button" onclick="quickLogin('learner1', 'Password123@')" 
-          class="p-2.5 rounded-xl bg-white/5 hover:bg-cyan-500/10 border border-white/10 hover:border-cyan-500/40 text-left transition-all group">
-          <div class="font-bold text-slate-200 group-hover:text-cyan-300">learner1</div>
-          <div class="text-[10px] text-slate-400">Học viên 1</div>
-        </button>
-
-        <button type="button" onclick="quickLogin('learner2', 'Password123@')" 
-          class="p-2.5 rounded-xl bg-white/5 hover:bg-cyan-500/10 border border-white/10 hover:border-cyan-500/40 text-left transition-all group">
-          <div class="font-bold text-slate-200 group-hover:text-cyan-300">learner2</div>
-          <div class="text-[10px] text-slate-400">Học viên 2</div>
-        </button>
-
-        <button type="button" onclick="quickLogin('instructor1', 'Password123@')" 
-          class="p-2.5 rounded-xl bg-white/5 hover:bg-blue-500/10 border border-white/10 hover:border-blue-500/40 text-left transition-all group">
-          <div class="font-bold text-slate-200 group-hover:text-blue-300">instructor1</div>
-          <div class="text-[10px] text-slate-400">Giảng viên tạo đề</div>
-        </button>
-
-        <button type="button" onclick="quickLogin('admin1', 'Password123@')" 
-          class="p-2.5 rounded-xl bg-white/5 hover:bg-purple-500/10 border border-white/10 hover:border-purple-500/40 text-left transition-all group">
-          <div class="font-bold text-slate-200 group-hover:text-purple-300">admin1</div>
-          <div class="text-[10px] text-slate-400">Quản trị viên</div>
-        </button>
-      </div>
+    <!-- Liên kết Đăng ký tài khoản mới -->
+    <div class="mt-6 pt-5 border-t border-white/10 text-center space-y-2">
+      <p class="text-xs text-slate-400">
+        Chưa có tài khoản sinh viên?
+        <a href="/BaiTapLon/register.php" class="text-cyan-400 hover:text-cyan-300 font-bold hover:underline ml-1">
+          Đăng ký ngay <i class="fa-solid fa-user-plus text-[10px] ml-0.5"></i>
+        </a>
+      </p>
+      <a href="/BaiTapLon/index.php" class="inline-block text-[11px] text-slate-500 hover:text-slate-300 transition-colors">
+        <i class="fa-solid fa-arrow-left mr-1"></i>Quay lại Trang chủ
+      </a>
     </div>
   </div>
 </div>
-
-<script>
-  function quickLogin(username, password) {
-    document.getElementById('login-identifier').value = username;
-    document.getElementById('login-password').value = password;
-    document.querySelector('form').submit();
-  }
-</script>
 
 </body>
 </html>

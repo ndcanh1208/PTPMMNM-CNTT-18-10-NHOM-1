@@ -18,9 +18,16 @@ CREATE TABLE `users` (
   `email` VARCHAR(100) NOT NULL UNIQUE,
   `password_hash` VARCHAR(255) NOT NULL,
   `full_name` VARCHAR(100) NOT NULL,
+  `student_code` VARCHAR(30) NULL UNIQUE COMMENT 'Mã số sinh viên (VD: CNTT181001)',
+  `class_name` VARCHAR(60) NULL COMMENT 'Lớp sinh viên / học phần (VD: CNTT-18-10)',
   `role` ENUM('learner', 'instructor', 'admin') NOT NULL DEFAULT 'learner',
+  `is_locked` TINYINT(1) NOT NULL DEFAULT 0 COMMENT '1 = Tài khoản bị khóa; 0 = Hoạt động',
+  `lock_reason` VARCHAR(255) NULL COMMENT 'Lý do khóa tài khoản',
+  `last_login_at` DATETIME NULL COMMENT 'Thời điểm đăng nhập gần nhất',
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  INDEX `idx_users_role` (`role`)
+  INDEX `idx_users_role` (`role`),
+  INDEX `idx_users_locked` (`is_locked`),
+  INDEX `idx_users_class` (`class_name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Bảng người dùng và phân quyền';
 
 -- ------------------------------------------------------------------------------
@@ -68,12 +75,14 @@ CREATE TABLE `problems` (
   `current_version_id` INT NULL COMMENT 'Trỏ đến phiên bản bộ dữ liệu đang hiệu lực',
   `source_attribution` TEXT NULL COMMENT 'Nguồn gốc hợp lệ & giấy phép sử dụng (VD: CSES, Kattis, MIT)',
   `is_public` TINYINT(1) NOT NULL DEFAULT 1 COMMENT '1 = Công khai; 0 = Chỉ trong lớp học',
+  `visibility` ENUM('public', 'hidden', 'exam_only') NOT NULL DEFAULT 'public' COMMENT 'public = Công khai; hidden = Ẩn bảo trì; exam_only = Phòng thi riêng',
   `created_by` INT NOT NULL,
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `deleted_at` DATETIME NULL DEFAULT NULL COMMENT 'Thời điểm xóa mềm (NULL = đang hoạt động)',
   INDEX `idx_problems_difficulty` (`difficulty`),
   INDEX `idx_problems_topic` (`topic`),
   INDEX `idx_problems_creator` (`created_by`),
+  INDEX `idx_problems_visibility` (`visibility`),
   INDEX `idx_problems_deleted_at` (`deleted_at`),
   CONSTRAINT `fk_problems_creator` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Bảng bài tập lập trình gốc';

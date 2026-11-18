@@ -31,8 +31,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $title = trim((string)($_POST['title'] ?? ''));
         $topic = trim((string)($_POST['topic'] ?? 'Cơ bản'));
         $difficulty = in_array($_POST['difficulty'] ?? '', ['Easy', 'Medium', 'Hard'], true) ? $_POST['difficulty'] : 'Easy';
+        $visibility = in_array($_POST['visibility'] ?? '', ['public', 'hidden', 'exam_only'], true) ? $_POST['visibility'] : 'public';
+        $isPublic = ($visibility === 'public') ? 1 : 0;
         $timeLimitMs = max(100, min(10000, (int)($_POST['time_limit_ms'] ?? 1000)));
-        $memoryLimitKb = max(16384, min(1048576, (int)($_POST['memory_limit_mb'] ?? 256) * 1024));
+        $memoryLimitKb = isset($_POST['memory_limit_kb']) && (int)$_POST['memory_limit_kb'] >= 16384
+            ? min(1048576, (int)$_POST['memory_limit_kb'])
+            : max(16384, min(1048576, (int)($_POST['memory_limit_mb'] ?? 256) * 1024));
         $description = trim((string)($_POST['description'] ?? ''));
         $inputDesc = trim((string)($_POST['input_description'] ?? ''));
         $outputDesc = trim((string)($_POST['output_description'] ?? ''));
@@ -51,12 +55,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 try {
                     $pdo->beginTransaction();
 
-                    // 1. Thêm vào problems
+                    // 1. Thêm vào problems (kèm phân quyền hiển thị visibility)
                     $insertProb = $pdo->prepare("
-                        INSERT INTO problems (slug, title, topic, difficulty, source_attribution, is_public, created_by)
-                        VALUES (?, ?, ?, ?, ?, 1, ?)
+                        INSERT INTO problems (slug, title, topic, difficulty, source_attribution, is_public, visibility, created_by)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     ");
-                    $insertProb->execute([$slug, $title, $topic, $difficulty, $sourceAttribution, $currentUser['id']]);
+                    $insertProb->execute([$slug, $title, $topic, $difficulty, $sourceAttribution, $isPublic, $visibility, $currentUser['id']]);
                     $problemId = (int)$pdo->lastInsertId();
 
                     // 2. Tạo phiên bản v1 ban đầu
@@ -80,8 +84,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 
                     if (is_array($rawTestCases) && !empty($rawTestCases)) {
                         foreach ($rawTestCases as $tc) {
-                            $in = (string)($tc['input_data'] ?? '');
-                            $out = (string)($tc['expected_output'] ?? '');
+                            $in = str_replace(["\r\n", "\r"], "\n", preg_replace('/^\xEF\xBB\xBF/', '', (string)($tc['input_data'] ?? '')));
+                            $out = str_replace(["\r\n", "\r"], "\n", preg_replace('/^\xEF\xBB\xBF/', '', (string)($tc['expected_output'] ?? '')));
                             if ($in !== '' || $out !== '') {
                                 $isSample = 0;
                                 $isHidden = 1;
@@ -158,12 +162,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $title = trim((string)($_POST['title'] ?? ''));
         $topic = trim((string)($_POST['topic'] ?? 'Cơ bản'));
         $difficulty = in_array($_POST['difficulty'] ?? '', ['Easy', 'Medium', 'Hard'], true) ? $_POST['difficulty'] : 'Easy';
+        $visibility = in_array($_POST['visibility'] ?? '', ['public', 'hidden', 'exam_only'], true) ? $_POST['visibility'] : 'public';
+        $isPublic = ($visibility === 'public') ? 1 : 0;
         $timeLimitMs = max(100, min(10000, (int)($_POST['time_limit_ms'] ?? 1000)));
-        $memoryLimitKb = max(16384, min(1048576, (int)($_POST['memory_limit_mb'] ?? 256) * 1024));
+        $memoryLimitKb = isset($_POST['memory_limit_kb']) && (int)$_POST['memory_limit_kb'] >= 16384
+            ? min(1048576, (int)$_POST['memory_limit_kb'])
+            : max(16384, min(1048576, (int)($_POST['memory_limit_mb'] ?? 256) * 1024));
         $description = trim((string)($_POST['description'] ?? ''));
         $inputDesc = trim((string)($_POST['input_description'] ?? ''));
         $outputDesc = trim((string)($_POST['output_description'] ?? ''));
         $constraints = trim((string)($_POST['constraints'] ?? ''));
+        $createNewVersion = !empty($_POST['create_new_version']);
+        $changelog = trim((string)($_POST['changelog'] ?? ''));
 
         // Kiểm tra quyền
         $probStmt = $pdo->prepare("SELECT created_by, current_version_id FROM problems WHERE id = ?");
@@ -175,19 +185,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         } else {
             try {
                 $pdo->beginTransaction();
-                $updProb = $pdo->prepare("UPDATE problems SET title = ?, topic = ?, difficulty = ? WHERE id = ?");
-                $updProb->execute([$title, $topic, $difficulty, $problemId]);
+                $updProb = $pdo->prepare("UPDATE problems SET title = ?, topic = ?, difficulty = ?, visibility = ?, is_public = ? WHERE id = ?");
+                $updProb->execute([$title, $topic, $difficulty, $visibility, $isPublic, $problemId]);
 
-                if (!empty($prob['current_version_id'])) {
+                if ($createNewVersion) {
+                    // Phát hành phiên bản đề mới v(N+1), bảo toàn 100% lịch sử phiên bản cũ
+                    $maxVerStmt = $pdo->prepare("SELECT COALESCE(MAX(version_number), 0) FROM problem_versions WHERE problem_id = ?");
+                    $maxVerStmt->execute([$problemId]);
+                    $newVerNum = (int)$maxVerStmt->fetchColumn() + 1;
+
+                    $note = $changelog !== '' ? $changelog : "Cập nhật nội dung đề / giới hạn (v{$newVerNum})";
+                    $insVer = $pdo->prepare("
+                        INSERT INTO problem_versions (problem_id, version_number, description, input_description, output_description, constraints, time_limit_ms, memory_limit_kb, changelog, created_by)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ");
+                    $insVer->execute([
+                        $problemId, $newVerNum, $description, $inputDesc, $outputDesc, $constraints,
+                        $timeLimitMs, $memoryLimitKb, $note, $currentUser['id']
+                    ]);
+                    $newVerId = (int)$pdo->lastInsertId();
+
+                    // Sao chép toàn bộ test cases hiện hành sang phiên bản mới
+                    if (!empty($prob['current_version_id'])) {
+                        $copyTc = $pdo->prepare("
+                            INSERT INTO test_cases (problem_version_id, case_order, input_data, expected_output, is_sample, is_hidden, points, created_at)
+                            SELECT ?, case_order, input_data, expected_output, is_sample, is_hidden, points, NOW()
+                            FROM test_cases
+                            WHERE problem_version_id = ?
+                            ORDER BY case_order ASC
+                        ");
+                        $copyTc->execute([$newVerId, $prob['current_version_id']]);
+                    }
+
+                    $pdo->prepare("UPDATE problems SET current_version_id = ? WHERE id = ?")->execute([$newVerId, $problemId]);
+                    $msgSuccess = "Đã phát hành phiên bản đề mới v{$newVerNum} (giữ nguyên toàn bộ lịch sử đề cũ)!";
+                } elseif (!empty($prob['current_version_id'])) {
                     $updVer = $pdo->prepare("
                         UPDATE problem_versions 
                         SET description = ?, input_description = ?, output_description = ?, constraints = ?, time_limit_ms = ?, memory_limit_kb = ?
                         WHERE id = ?
                     ");
                     $updVer->execute([$description, $inputDesc, $outputDesc, $constraints, $timeLimitMs, $memoryLimitKb, $prob['current_version_id']]);
+                    $msgSuccess = "Đã cập nhật thông tin bài tập thành công!";
+                } else {
+                    $msgSuccess = "Đã cập nhật thông tin bài tập thành công!";
                 }
+
                 $pdo->commit();
-                $msgSuccess = "Đã cập nhật thông tin bài tập thành công!";
             } catch (Exception $e) {
                 if ($pdo->inTransaction()) {
                     $pdo->rollBack();
@@ -390,15 +434,33 @@ require_once __DIR__ . '/includes/sidebar.php';
                   <?php endif; ?>
                 </td>
                 <td class="py-4 px-6">
-                  <div class="font-semibold <?= $currentTab === 'trash' ? 'text-slate-300' : 'text-white group-hover:text-cyan-300' ?> transition-colors">
-                    <?= htmlspecialchars($p['title']) ?>
+                  <div class="flex items-center space-x-2 flex-wrap gap-y-1">
+                    <span class="font-semibold <?= $currentTab === 'trash' ? 'text-slate-300' : 'text-white group-hover:text-cyan-300' ?> transition-colors">
+                      <?= htmlspecialchars($p['title']) ?>
+                    </span>
+                    <?php
+                      $vis = $p['visibility'] ?? ($p['is_public'] ? 'public' : 'hidden');
+                      if ($vis === 'hidden'):
+                    ?>
+                      <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-slate-500/20 text-slate-300 border border-slate-500/30" title="Bài tập đang ẩn để bảo trì">
+                        <i class="fa-regular fa-eye-slash mr-0.5"></i>Ẩn bảo trì
+                      </span>
+                    <?php elseif ($vis === 'exam_only'): ?>
+                      <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30" title="Chỉ dùng cho kỳ thi / phòng thi riêng">
+                        <i class="fa-solid fa-user-lock mr-0.5"></i>Phòng thi
+                      </span>
+                    <?php else: ?>
+                      <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" title="Công khai cho sinh viên luyện tập">
+                        <i class="fa-solid fa-globe mr-0.5"></i>Công khai
+                      </span>
+                    <?php endif; ?>
                   </div>
                   <div class="text-xs text-slate-400 flex items-center space-x-3 mt-1">
                     <?php if ($currentTab === 'trash' && !empty($p['deleted_at'])): ?>
                       <span class="text-rose-400"><i class="fa-regular fa-calendar-xmark mr-1"></i>Đã xóa: <?= date('d/m/Y H:i', strtotime($p['deleted_at'])) ?></span>
                     <?php else: ?>
                       <span><i class="fa-regular fa-clock text-slate-500 mr-1"></i><?= $p['time_limit_ms'] ?? 1000 ?> ms</span>
-                      <span><i class="fa-solid fa-memory text-slate-500 mr-1"></i><?= round(($p['memory_limit_kb'] ?? 262144) / 1024) ?> MB</span>
+                      <span><i class="fa-solid fa-memory text-slate-500 mr-1"></i><?= number_format((int)($p['memory_limit_kb'] ?? 262144)) ?> KB (<?= round(($p['memory_limit_kb'] ?? 262144) / 1024) ?> MB)</span>
                     <?php endif; ?>
                   </div>
                 </td>
@@ -587,10 +649,18 @@ require_once __DIR__ . '/includes/sidebar.php';
         </div>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
           <label class="block text-xs uppercase font-bold text-slate-300 mb-1">Bộ nhớ tối đa (MB)</label>
           <input type="number" name="memory_limit_mb" value="256" min="16" max="1024" class="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/15 text-white text-sm focus:outline-none focus:border-cyan-400">
+        </div>
+        <div>
+          <label class="block text-xs uppercase font-bold text-slate-300 mb-1">Phân quyền hiển thị</label>
+          <select name="visibility" class="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/15 text-white text-sm focus:outline-none focus:border-cyan-400">
+            <option value="public">🌐 Công khai (Sinh viên làm tự do)</option>
+            <option value="hidden">👁️‍🗨️ Ẩn bảo trì (Chỉ Admin/GV thấy)</option>
+            <option value="exam_only">🔒 Phòng thi riêng (Kỳ thi / Lớp học)</option>
+          </select>
         </div>
         <div>
           <label class="block text-xs uppercase font-bold text-slate-300 mb-1">Nguồn bài (Attribution)</label>
@@ -705,9 +775,19 @@ require_once __DIR__ . '/includes/sidebar.php';
         </div>
       </div>
 
-      <div>
-        <label class="block text-xs uppercase font-bold text-slate-300 mb-1">Bộ nhớ tối đa (MB)</label>
-        <input type="number" name="memory_limit_mb" id="edit_memory_limit_mb" min="16" max="1024" class="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/15 text-white text-sm focus:outline-none focus:border-cyan-400">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs uppercase font-bold text-slate-300 mb-1">Bộ nhớ tối đa (MB)</label>
+          <input type="number" name="memory_limit_mb" id="edit_memory_limit_mb" min="16" max="1024" class="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/15 text-white text-sm focus:outline-none focus:border-cyan-400">
+        </div>
+        <div>
+          <label class="block text-xs uppercase font-bold text-slate-300 mb-1">Phân quyền hiển thị</label>
+          <select name="visibility" id="edit_visibility" class="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/15 text-white text-sm focus:outline-none focus:border-cyan-400">
+            <option value="public">🌐 Công khai (Sinh viên làm tự do)</option>
+            <option value="hidden">👁️‍🗨️ Ẩn bảo trì (Chỉ Admin/GV thấy)</option>
+            <option value="exam_only">🔒 Phòng thi riêng (Kỳ thi / Lớp học)</option>
+          </select>
+        </div>
       </div>
 
       <div>
@@ -729,6 +809,25 @@ require_once __DIR__ . '/includes/sidebar.php';
       <div>
         <label class="block text-xs uppercase font-bold text-slate-300 mb-1">Ràng buộc & Giới hạn (Constraints)</label>
         <textarea name="constraints" id="edit_constraints" rows="2" class="w-full p-2.5 rounded-xl bg-black/40 border border-white/15 text-white text-xs font-mono"></textarea>
+      </div>
+
+      <!-- Tùy chọn Quản lý phiên bản đề (problem_versions) -->
+      <div class="p-3.5 rounded-xl bg-cyan-500/5 border border-cyan-500/20 space-y-2.5">
+        <label class="flex items-start space-x-2.5 cursor-pointer">
+          <input type="checkbox" name="create_new_version" id="edit_create_new_version" value="1"
+            onchange="document.getElementById('edit-changelog-wrap').classList.toggle('hidden', !this.checked)"
+            class="mt-0.5 accent-cyan-400">
+          <div class="text-xs">
+            <span class="font-bold text-cyan-300">Phát hành thành phiên bản đề mới (v(N+1))</span>
+            <p class="text-[11px] text-slate-400 mt-0.5">
+              Lưu các thay đổi về đề bài, ràng buộc và giới hạn thời gian/bộ nhớ thành một phiên bản mới, bảo toàn 100% lịch sử các đề cũ.
+            </p>
+          </div>
+        </label>
+        <div id="edit-changelog-wrap" class="hidden">
+          <input type="text" name="changelog" id="edit_changelog" placeholder="Ghi chú thay đổi phiên bản (VD: Tăng time limit lên 2000ms, làm rõ ràng buộc N <= 10^5)..."
+            class="w-full px-3 py-2 rounded-lg bg-black/50 border border-white/15 text-white text-xs focus:outline-none focus:border-cyan-400">
+        </div>
       </div>
 
       <div class="flex items-center justify-end space-x-3 pt-4 border-t border-white/10">
@@ -1057,10 +1156,17 @@ function openEditModal(problem) {
   document.getElementById('edit_difficulty').value = problem.difficulty;
   document.getElementById('edit_time_limit_ms').value = problem.time_limit_ms || 1000;
   document.getElementById('edit_memory_limit_mb').value = Math.round((problem.memory_limit_kb || 262144) / 1024);
+  document.getElementById('edit_visibility').value = problem.visibility || (problem.is_public ? 'public' : 'hidden');
   document.getElementById('edit_description').value = problem.description || '';
   document.getElementById('edit_input_description').value = problem.input_description || '';
   document.getElementById('edit_output_description').value = problem.output_description || '';
   document.getElementById('edit_constraints').value = problem.constraints || '';
+  const chkVer = document.getElementById('edit_create_new_version');
+  if (chkVer) chkVer.checked = false;
+  const wrapVer = document.getElementById('edit-changelog-wrap');
+  if (wrapVer) wrapVer.classList.add('hidden');
+  const chgInput = document.getElementById('edit_changelog');
+  if (chgInput) chgInput.value = '';
   openModal('editModal');
 }
 

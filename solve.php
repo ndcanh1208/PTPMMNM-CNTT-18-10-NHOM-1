@@ -20,32 +20,32 @@ $slugParam = trim((string)($_GET['slug'] ?? ($_GET['code'] ?? '')));
 // 1. Lấy thông tin bài tập và phiên bản hiện hành
 if ($problemId > 0) {
     $stmt = $pdo->prepare("
-        SELECT p.id, p.slug, p.title, p.topic, p.difficulty, p.source_attribution,
+        SELECT p.id, p.slug, p.title, p.topic, p.difficulty, p.source_attribution, p.visibility, p.is_public, p.created_by,
                pv.id as version_id, pv.version_number, pv.description, pv.input_description,
                pv.output_description, pv.constraints, pv.time_limit_ms, pv.memory_limit_kb
         FROM problems p
         JOIN problem_versions pv ON p.current_version_id = pv.id
-        WHERE p.id = :id AND p.is_public = 1 AND p.deleted_at IS NULL
+        WHERE p.id = :id AND p.deleted_at IS NULL
     ");
     $stmt->execute(['id' => $problemId]);
 } elseif ($slugParam !== '') {
     $stmt = $pdo->prepare("
-        SELECT p.id, p.slug, p.title, p.topic, p.difficulty, p.source_attribution,
+        SELECT p.id, p.slug, p.title, p.topic, p.difficulty, p.source_attribution, p.visibility, p.is_public, p.created_by,
                pv.id as version_id, pv.version_number, pv.description, pv.input_description,
                pv.output_description, pv.constraints, pv.time_limit_ms, pv.memory_limit_kb
         FROM problems p
         JOIN problem_versions pv ON p.current_version_id = pv.id
-        WHERE (p.slug = :slug OR LOWER(p.slug) = LOWER(:slug2)) AND p.is_public = 1 AND p.deleted_at IS NULL
+        WHERE (p.slug = :slug OR LOWER(p.slug) = LOWER(:slug2)) AND p.deleted_at IS NULL
     ");
     $stmt->execute(['slug' => $slugParam, 'slug2' => strtolower(str_replace('_', '-', $slugParam))]);
 } else {
     $stmt = $pdo->prepare("
-        SELECT p.id, p.slug, p.title, p.topic, p.difficulty, p.source_attribution,
+        SELECT p.id, p.slug, p.title, p.topic, p.difficulty, p.source_attribution, p.visibility, p.is_public, p.created_by,
                pv.id as version_id, pv.version_number, pv.description, pv.input_description,
                pv.output_description, pv.constraints, pv.time_limit_ms, pv.memory_limit_kb
         FROM problems p
         JOIN problem_versions pv ON p.current_version_id = pv.id
-        WHERE p.is_public = 1 AND p.deleted_at IS NULL
+        WHERE p.is_public = 1 AND p.visibility = 'public' AND p.deleted_at IS NULL
         ORDER BY p.id ASC
         LIMIT 1
     ");
@@ -56,6 +56,27 @@ $problem = $stmt->fetch();
 if (!$problem) {
     header('Location: /BaiTapLon/problems.php');
     exit;
+}
+
+// Kiểm tra quyền hiển thị (public / hidden / exam_only)
+$vis = $problem['visibility'] ?? ($problem['is_public'] ? 'public' : 'hidden');
+$isStaff = Auth::isAdmin() || (Auth::isInstructor() && (int)$problem['created_by'] === Auth::id());
+if ($vis === 'hidden' && !$isStaff) {
+    header('Location: /BaiTapLon/problems.php');
+    exit;
+}
+if ($vis === 'exam_only' && !$isStaff) {
+    // Chỉ cho phép sinh viên thuộc ít nhất 1 lớp học/phòng thi
+    $allowedExam = false;
+    if ($currentUser) {
+        $cmStmt = $pdo->prepare("SELECT COUNT(*) FROM classroom_members WHERE user_id = ?");
+        $cmStmt->execute([$currentUser['id']]);
+        $allowedExam = ((int)$cmStmt->fetchColumn() > 0);
+    }
+    if (!$allowedExam) {
+        header('Location: /BaiTapLon/problems.php');
+        exit;
+    }
 }
 
 // 2. Lấy các ca kiểm thử ví dụ công khai (is_sample = 1)

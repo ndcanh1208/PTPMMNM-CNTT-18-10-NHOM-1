@@ -62,17 +62,39 @@ $isWorkerActive = true;
           <?= Auth::isAdmin() ? 'Phân hệ Quản trị viên' : 'Phân hệ Giảng viên' ?>
         </div>
 
-        <!-- Quản lý bài tập & Phiên bản -->
-        <a href="/BaiTapLon/manage_problems.php" class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 <?= $currentScript === 'manage_problems.php' ? 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 shadow-[0_0_12px_rgba(0,255,255,0.2)]' : 'text-slate-400 hover:text-slate-100 hover:bg-white/5' ?>">
+        <!-- 1 & 2. Quản lý bài tập, Phiên bản & Bộ Test -->
+        <a href="/BaiTapLon/manage_problems.php" class="flex items-center space-x-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 <?= $currentScript === 'manage_problems.php' ? 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 shadow-[0_0_12px_rgba(0,255,255,0.2)]' : 'text-slate-400 hover:text-slate-100 hover:bg-white/5' ?>">
           <i class="fa-solid fa-sliders w-5 text-center text-base"></i>
-          <span>Quản lý & Tạo Đề bài</span>
+          <span>Quản lý Đề & Bộ Test</span>
         </a>
 
-        <!-- Chấm lại & Đối chiếu (Tình huống 2) -->
-        <a href="/BaiTapLon/rejudge_compare.php" class="flex items-center space-x-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 <?= $currentScript === 'rejudge_compare.php' ? 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 shadow-[0_0_12px_rgba(0,255,255,0.2)]' : 'text-slate-400 hover:text-slate-100 hover:bg-white/5' ?>">
+        <?php if (Auth::isAdmin()): ?>
+          <!-- 3. Quản lý Chấm bài & Vận hành Hệ thống -->
+          <a href="/BaiTapLon/admin_judging.php" class="flex items-center space-x-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 <?= $currentScript === 'admin_judging.php' ? 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 shadow-[0_0_12px_rgba(0,255,255,0.2)]' : 'text-slate-400 hover:text-slate-100 hover:bg-white/5' ?>">
+            <i class="fa-solid fa-server w-5 text-center text-base"></i>
+            <span>Vận hành Chấm & Rejudge</span>
+          </a>
+        <?php endif; ?>
+
+        <!-- Chấm lại & Đối chiếu Phiên bản -->
+        <a href="/BaiTapLon/rejudge_compare.php" class="flex items-center space-x-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 <?= $currentScript === 'rejudge_compare.php' ? 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 shadow-[0_0_12px_rgba(0,255,255,0.2)]' : 'text-slate-400 hover:text-slate-100 hover:bg-white/5' ?>">
           <i class="fa-solid fa-code-compare w-5 text-center text-base"></i>
           <span>Chấm lại & Đối chiếu</span>
         </a>
+
+        <?php if (Auth::isAdmin()): ?>
+          <!-- 4. Quản lý Người dùng & Tài khoản -->
+          <a href="/BaiTapLon/admin_users.php" class="flex items-center space-x-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 <?= $currentScript === 'admin_users.php' ? 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 shadow-[0_0_12px_rgba(0,255,255,0.2)]' : 'text-slate-400 hover:text-slate-100 hover:bg-white/5' ?>">
+            <i class="fa-solid fa-users-gear w-5 text-center text-base"></i>
+            <span>Quản lý Người dùng</span>
+          </a>
+
+          <!-- 5. Thống kê & Báo cáo Học tập -->
+          <a href="/BaiTapLon/admin_analytics.php" class="flex items-center space-x-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 <?= $currentScript === 'admin_analytics.php' ? 'bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 shadow-[0_0_12px_rgba(0,255,255,0.2)]' : 'text-slate-400 hover:text-slate-100 hover:bg-white/5' ?>">
+            <i class="fa-solid fa-chart-pie w-5 text-center text-base"></i>
+            <span>Thống kê & Báo cáo</span>
+          </a>
+        <?php endif; ?>
       <?php endif; ?>
     </nav>
   </div>
@@ -110,10 +132,16 @@ $isWorkerActive = true;
         </a>
       </div>
     <?php else: ?>
-      <a href="/BaiTapLon/login.php" class="w-full btn-cyan flex items-center justify-center space-x-2 text-xs py-2.5">
-        <i class="fa-solid fa-arrow-right-to-bracket"></i>
-        <span>Đăng nhập hệ thống</span>
-      </a>
+      <div class="space-y-2">
+        <a href="/BaiTapLon/login.php" class="w-full btn-cyan flex items-center justify-center space-x-2 text-xs py-2.5 font-bold">
+          <i class="fa-solid fa-arrow-right-to-bracket"></i>
+          <span>Đăng nhập hệ thống</span>
+        </a>
+        <a href="/BaiTapLon/register.php" class="w-full flex items-center justify-center space-x-2 text-xs py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-colors font-semibold">
+          <i class="fa-solid fa-user-plus"></i>
+          <span>Đăng ký tài khoản</span>
+        </a>
+      </div>
     <?php endif; ?>
   </div>
 </aside>

@@ -108,16 +108,16 @@ try {
         exit;
     }
 
-    // 4. Lấy phiên bản đề hiện hành (current_version_id)
+    // 4. Lấy phiên bản đề hiện hành & kiểm tra phân quyền hiển thị (public / hidden / exam_only)
     $stmtProb = $pdo->prepare("
-        SELECT current_version_id 
+        SELECT current_version_id, visibility, is_public, created_by
         FROM problems 
-        WHERE id = :id AND is_public = 1 AND deleted_at IS NULL
+        WHERE id = :id AND deleted_at IS NULL
     ");
     $stmtProb->execute(['id' => $problemId]);
-    $versionId = $stmtProb->fetchColumn();
+    $probRow = $stmtProb->fetch(PDO::FETCH_ASSOC);
 
-    if (!$versionId) {
+    if (!$probRow || empty($probRow['current_version_id'])) {
         http_response_code(404);
         echo json_encode([
             'success' => false,
@@ -125,6 +125,33 @@ try {
         ], JSON_UNESCAPED_UNICODE);
         exit;
     }
+
+    $vis = $probRow['visibility'] ?? ($probRow['is_public'] ? 'public' : 'hidden');
+    $isStaff = Auth::isAdmin() || (Auth::isInstructor() && (int)$probRow['created_by'] === $userId);
+
+    if ($vis === 'hidden' && !$isStaff) {
+        http_response_code(403);
+        echo json_encode([
+            'success' => false,
+            'error'   => 'Bài tập này hiện đang được ẩn để bảo trì, chưa mở nhận bài nộp.'
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    if ($vis === 'exam_only' && !$isStaff) {
+        $cmCheckExam = $pdo->prepare("SELECT COUNT(*) FROM classroom_members WHERE user_id = ?");
+        $cmCheckExam->execute([$userId]);
+        if ((int)$cmCheckExam->fetchColumn() === 0) {
+            http_response_code(403);
+            echo json_encode([
+                'success' => false,
+                'error'   => 'Bài tập này chỉ dành riêng cho kỳ thi / phòng thi. Bạn chưa thuộc danh sách lớp tham dự.'
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+    }
+
+    $versionId = (int)$probRow['current_version_id'];
 
     // Kiểm tra lớp học nếu có cung cấp
     if ($classroomId !== null) {
